@@ -1,0 +1,46 @@
+services:
+  db:
+    image: mysql:8.0
+    platform: linux/arm64
+    command: --lower_case_table_names=1 --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: 'playa_db'
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - '3309:3306'
+    volumes:
+      - ./data:/var/lib/mysql
+
+  web:
+    build: 
+      context: .
+    platform: linux/arm64
+    ports:
+      - "8085:8085"
+    volumes:
+      - .:/code
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://root:${DB_ROOT_PASSWORD}@db/playa_db
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8085 --reload
+    restart: always
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+    platform: linux/arm64
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8085
+      - WDS_SOCKET_PORT=0
+      - GENERATE_SOURCEMAP=false
+    stdin_open: true
+    tty: true
+    depends_on:
+      - web
+      - db

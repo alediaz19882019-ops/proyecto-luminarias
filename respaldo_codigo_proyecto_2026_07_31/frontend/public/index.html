@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    
+    <!-- Política de Seguridad (CSP) ajustada para permitir tu imagen y recursos -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com;
+      style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com;
+      img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com %PUBLIC_URL%/static/uploads/;
+      connect-src 'self' http://localhost:8085;
+    ">
+    
+    <title>Smart Lighting Playa</title>
+
+    <!-- Iconos Oficiales para Navegadores, Celulares y Tablets -->
+    <link rel="icon" href="%PUBLIC_URL%/static/uploads/alejo.jpeg?v=2" type="image/jpeg" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/static/uploads/alejo.jpeg?v=2" />
+
+    <!-- Archivo Manifest para la app en Celular/Tablet -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- Tailwind CSS desde CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Hojas de Estilo para los Mapas de Leaflet -->
+    <link 
+      rel="stylesheet" 
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+      crossorigin="" 
+    />
+
+    <style>
+      /* Evita que el fondo blanco de React tape el diseño oscuro */
+      body, html, #root { 
+        margin: 0; 
+        padding: 0; 
+        height: 100vh; 
+        width: 100vw; 
+        overflow-x: hidden; 
+        background-color: #050810; 
+      }
+      .leaflet-marker-icon { background: transparent !important; border: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

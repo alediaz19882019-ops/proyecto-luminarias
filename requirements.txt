@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+strawberry-graphql[fastapi]
+sqlalchemy
+mysql-connector-python
+python-dateutil
+bcrypt

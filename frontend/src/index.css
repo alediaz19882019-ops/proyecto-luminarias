@@ -1,0 +1,24 @@
+/* 1. Importación de estilos de Leaflet */
+@import "leaflet/dist/leaflet.css";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #171717;
+}
+
+/* 2. Contenedor del Mapa */
+.leaflet-container {
+  width: 100%;
+  height: 100vh; 
+  background-color: #262626;
+}
+
+/* 3. Estilos de Popups */
+.leaflet-popup-content-wrapper {
+  background: #ffffff;
+  color: #1e293b;
+  border-radius: 12px;
+  font-weight: 600;
+}

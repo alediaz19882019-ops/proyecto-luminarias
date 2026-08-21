@@ -1,0 +1,16 @@
+{
+  "short_name": "Smart Lighting Playa",
+  "name": "Smart Lighting Playa - Sistema de Alumbrado Público",
+  "icons": [
+    {
+      "src": "static/uploads/alejo.jpeg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#6b1839",
+  "background_color": "#111827"
+}

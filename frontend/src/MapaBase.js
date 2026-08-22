@@ -1,10 +1,11 @@
+cat << 'EOF' > /root/proy-alumbrado/frontend/src/MapaBase.js
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, CircleMarker, Pane, Tooltip as MapTooltip } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const API_URL = 'http://localhost:8085/graphql';
+const API_URL = 'http://134.209.65.153:8085/graphql';
 
 const IconoInfo = ({ color }) => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -129,7 +130,7 @@ const MapaBase = () => {
   const [verAlumbrado, setVerAlumbrado] = useState(true);
   const [verInmuebles, setVerInmuebles] = useState(true);
   const [soloAlertas, setSoloAlertas] = useState(false);
-  const [modo3D, setModo3D] = useState(false); // NUEVO ESTADO MODO 3D
+  const [modo3D, setModo3D] = useState(false);
   const [anioSeleccionado, setAnioSeleccionado] = useState(2026);
   const [verGraficaConsumo, setVerGraficaConsumo] = useState(false);
   const [mostrarCFE, setMostrarCFE] = useState(false);
@@ -295,7 +296,6 @@ const MapaBase = () => {
         
         <button onClick={() => { if(sectorActivo) setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); }} style={{ background: verGraficaConsumo ? '#8b5cf6' : 'white', color: verGraficaConsumo ? 'white' : '#8b5cf6', border: '2px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}> GRÁFICA</button>
         
-        {/* BOTÓN MODO 3D */}
         <button 
           onClick={() => setModo3D(!modo3D)} 
           disabled={!sectorActivo}
@@ -396,3 +396,4 @@ const MapaBase = () => {
 };
 
 export default MapaBase;
+EOF

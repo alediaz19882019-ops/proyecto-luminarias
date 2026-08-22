@@ -1,3 +1,4 @@
+cat << 'EOF' > /root/proy-alumbrado/frontend/src/Home.jsx
 import React from 'react';
 
 const Home = ({ onLogoClick }) => {
@@ -14,7 +15,6 @@ const Home = ({ onLogoClick }) => {
             animation: heartbeat 10s ease-in-out infinite;
           }
           
-          /* Ocultar elementos globales mientras esta pantalla estÃŠ activa */
           nav, header, footer, .navbar, .sidebar { 
             display: none !important; 
           }
@@ -26,13 +26,11 @@ const Home = ({ onLogoClick }) => {
         `}
       </style>
 
-      {/* Contenedor Interactivo */}
       <div 
         onClick={onLogoClick} 
         className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black"
       >
         <img 
-          // AsegÃērate de que la extensiÃŗn sea .jpeg y no .jpg
           src="/static/uploads/alejo.jpeg" 
           alt="Imagen de Bienvenida" 
           className="w-full h-full object-cover animate-full-photo"
@@ -42,16 +40,13 @@ const Home = ({ onLogoClick }) => {
             minHeight: '100vh'
           }}
           onError={(e) => {
-            console.error("No se encontrÃŗ la foto en public/static/uploads/alejo.jpeg");
-            // Si falla, ponemos un color oscuro para que no se vea blanco
+            console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
             e.target.style.backgroundColor = '#020202';
           }}
         />
         
-        {/* Capa de degradado inferior para dar elegancia */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
 
-        {/* Texto sutil en la parte inferior */}
         <div className="absolute bottom-12 w-full text-center">
             <p className="text-white/40 text-[10px] uppercase tracking-[0.5em] font-light animate-pulse">
                 Click para ingresar
@@ -63,3 +58,4 @@ const Home = ({ onLogoClick }) => {
 };
 
 export default Home;
+EOF

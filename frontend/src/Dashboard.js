@@ -112,8 +112,9 @@ const Dashboard = () => {
       } 
     }`;
     try {
-      const res = await fetch('http://localhost:8085/graphql', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await fetch('http://134.209.65.153:8085/graphql', {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables: { anio: parseInt(anio) } }),
       });
       const result = await res.json();

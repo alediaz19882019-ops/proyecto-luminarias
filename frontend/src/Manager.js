@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 
-const API_URL = 'http://localhost:8085/graphql';
+const API_URL = 'http://134.209.65.153:8085/graphql';
 
 const ORDEN_MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 

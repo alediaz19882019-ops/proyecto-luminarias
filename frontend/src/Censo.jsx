@@ -1,4 +1,4 @@
-
+cat << 'EOF' > /root/proy-alumbrado/frontend/src/Censo.jsx
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   MapPin, Plus, Trash2, Edit3, Save, RefreshCw, 
@@ -8,7 +8,7 @@ import { MapContainer, TileLayer, Marker, useMap, useMapEvents, CircleMarker, Pa
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-const API_URL = 'http://localhost:8085/graphql';
+const API_URL = 'http://134.209.65.153:8085/graphql';
 
 const ActualizarMapa = ({ sector, luminaria, modoCrearSector, modoCrearLuminaria, ubicacionUsuario, modoSeguimiento, posicionGPS }) => {
   const map = useMap();
@@ -1203,3 +1203,4 @@ const Censo = () => {
 };
 
 export default Censo;
+EOF

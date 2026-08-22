@@ -1,11 +1,10 @@
-cat << 'EOF' > /root/proy-alumbrado/frontend/src/MapaBase.js
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, CircleMarker, Pane, Tooltip as MapTooltip } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const API_URL = 'http://134.209.65.153:8085/graphql';
+const API_URL = 'http://localhost:8085/graphql';
 
 const IconoInfo = ({ color }) => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -78,48 +77,6 @@ const crearIconoSector = (isActive, sector, mesesOrden) => {
   });
 };
 
-const crearIconoPoste3D = (luminariasPorPoste = 1) => {
-  const numLamps = parseInt(luminariasPorPoste) >= 2 ? 2 : 1;
-
-  const cabezalesHtml = numLamps >= 2 
-    ? `
-      <div style="display: flex; gap: 6px; align-items: flex-end;">
-        <div style="width: 14px; height: 8px; background: linear-gradient(to bottom, #38bdf8, #0369a1); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px #38bdf8;"></div>
-        <div style="width: 14px; height: 8px; background: linear-gradient(to bottom, #38bdf8, #0369a1); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px #38bdf8;"></div>
-      </div>
-    `
-    : `
-      <div style="width: 18px; height: 9px; background: linear-gradient(to bottom, #38bdf8, #0369a1); border-radius: 6px 6px 0 0; box-shadow: 0 0 12px #38bdf8;"></div>
-    `;
-
-  return L.divIcon({
-    html: `
-      <div style="
-        position: relative;
-        width: 60px; height: 60px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-end;
-        transform: translateY(-10px);
-        filter: drop-shadow(0 6px 6px rgba(0,0,0,0.7));
-      ">
-        <div style="
-          position: absolute; bottom: 2px;
-          width: 44px; height: 24px;
-          background: radial-gradient(circle, rgba(56,189,248,0.5) 0%, rgba(56,189,248,0) 70%);
-          border-radius: 50%;
-        "></div>
-        ${cabezalesHtml}
-        <div style="width: 3px; height: 32px; background: linear-gradient(90deg, #94a3b8, #cbd5e1, #475569); border-radius: 1px;"></div>
-        <div style="width: 10px; height: 5px; background: #334155; border-radius: 2px; border: 1px solid #64748b;"></div>
-      </div>
-    `,
-    iconSize: [60, 60],
-    iconAnchor: [30, 50]
-  });
-};
-
 const MapaBase = () => {
   const [todosLosSectores, setTodosLosSectores] = useState([]);
   const [sectorActivo, setSectorActivo] = useState(null); 
@@ -129,8 +86,7 @@ const MapaBase = () => {
   const [modoBusquedaIndividual, setModoBusquedaIndividual] = useState(false);
   const [verAlumbrado, setVerAlumbrado] = useState(true);
   const [verInmuebles, setVerInmuebles] = useState(true);
-  const [soloAlertas, setSoloAlertas] = useState(false);
-  const [modo3D, setModo3D] = useState(false);
+  const [soloAlertas, setSoloAlertas] = useState(false); // NUEVO ESTADO
   const [anioSeleccionado, setAnioSeleccionado] = useState(2026);
   const [verGraficaConsumo, setVerGraficaConsumo] = useState(false);
   const [mostrarCFE, setMostrarCFE] = useState(false);
@@ -166,6 +122,7 @@ const MapaBase = () => {
     return todosLosSectores.filter(s => {
       const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
       
+      // Lógica para detectar Alerta (Rojo)
       const recibos = s.recibos || [];
       const ultimoRecibo = [...recibos].sort((a, b) => {
         const anioDiff = parseInt(b.anio) - parseInt(a.anio);
@@ -179,6 +136,8 @@ const MapaBase = () => {
       if (!esInmueble && !verAlumbrado) return false;
       if (modoBusquedaIndividual && sectorActivo) return s.id === sectorActivo.id;
       if (coloniaFiltrada && s.nombreColonia?.toUpperCase() !== coloniaFiltrada.toUpperCase()) return false;
+      
+      // Filtro de Alerta Rojo
       if (soloAlertas && !esAlerta) return false;
 
       return true;
@@ -268,52 +227,22 @@ const MapaBase = () => {
 
         {todosLosSectores.filter(s => idsSectoresVisibles.includes(s.id)).map(s => 
           s.luminarias?.map(lum => (
-            modo3D ? (
-              <Marker 
-                key={`post-3d-${lum.id}`} 
-                position={[parseFloat(lum.latitud), parseFloat(lum.longitud)]} 
-                icon={crearIconoPoste3D(lum.luminariasPorPoste)} 
-              />
-            ) : (
-              <CircleMarker 
-                key={`lum-${lum.id}`} 
-                center={[parseFloat(lum.latitud), parseFloat(lum.longitud)]} 
-                radius={6} 
-                pathOptions={{ color: 'black', fillColor: 'red', fillOpacity: 1, weight: 1.5, pane: 'markerPane' }}
-              >
-                <MapTooltip direction="top"><strong>{lum.capacidad} Watts</strong></MapTooltip>
-              </CircleMarker>
-            )
+            <CircleMarker key={`lum-${lum.id}`} center={[parseFloat(lum.latitud), parseFloat(lum.longitud)]} radius={6} pathOptions={{ color: 'black', fillColor: 'red', fillOpacity: 1, weight: 1.5, pane: 'markerPane' }}>
+              <MapTooltip direction="top"><strong>{lum.capacidad} Watts</strong></MapTooltip>
+            </CircleMarker>
           ))
         )}
       </MapContainer>
 
-      <div style={{ position: 'absolute', bottom: 50, left: 10, zIndex: 5000, display: 'flex', gap: '5px', flexWrap: 'nowrap', maxWidth: '950px', alignItems: 'center' }}>
+      <div style={{ position: 'absolute', bottom: 50, left: 10, zIndex: 5000, display: 'flex', gap: '5px', flexWrap: 'nowrap', maxWidth: '900px', alignItems: 'center' }}>
         <button onClick={() => setVerAlumbrado(!verAlumbrado)} style={{ background: verAlumbrado ? '#3b82f6' : 'white', color: verAlumbrado ? 'white' : '#64748b', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> ALUMBRADO</button>
         <button onClick={() => setVerInmuebles(!verInmuebles)} style={{ background: verInmuebles ? '#ff8c00ff' : 'white', color: verInmuebles ? 'white' : '#64748b', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> INMUEBLES</button>
         
+        {/* BOTÓN ALERTA ROJO */}
         <button onClick={() => setSoloAlertas(!soloAlertas)} style={{ background: soloAlertas ? '#dc2626' : 'white', color: soloAlertas ? 'white' : '#dc2626', border: '2px solid #dc2626', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> ALERTAS</button>
         
         <button onClick={() => { if(sectorActivo) setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); }} style={{ background: verGraficaConsumo ? '#8b5cf6' : 'white', color: verGraficaConsumo ? 'white' : '#8b5cf6', border: '2px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}> GRÁFICA</button>
         
-        <button 
-          onClick={() => setModo3D(!modo3D)} 
-          disabled={!sectorActivo}
-          style={{ 
-            background: modo3D ? '#0ea5e9' : 'white', 
-            color: modo3D ? 'white' : '#0ea5e9', 
-            border: '2px solid #000000', 
-            padding: '10px 18px', 
-            borderRadius: '50px', 
-            cursor: sectorActivo ? 'pointer' : 'not-allowed', 
-            fontWeight: 800, 
-            fontSize: '11px',
-            opacity: sectorActivo ? 1 : 0.5 
-          }}
-        > 
-          {modo3D ? '3D ACTIVO' : 'MODO 3D'} 
-        </button>
-
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
           setSectorActivo(null); 
@@ -321,8 +250,7 @@ const MapaBase = () => {
           setBusqueda(""); 
           setColoniaFiltrada(null); 
           setModoBusquedaIndividual(false); 
-          setSoloAlertas(false); 
-          setModo3D(false);
+          setSoloAlertas(false); // Limpiar alertas en Clean
         }} style={{ background: '#f1f5f9', color: '#ef4444', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}>CLEAN</button>
         
         <select value={anioSeleccionado} onChange={(e) => setAnioSeleccionado(parseInt(e.target.value))} style={{ background: 'white', border: '1px solid #000', padding: '10px 15px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio}>{anio}</option>)}</select>
@@ -396,4 +324,3 @@ const MapaBase = () => {
 };
 
 export default MapaBase;
-EOF

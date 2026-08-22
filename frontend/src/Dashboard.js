@@ -112,11 +112,14 @@ const Dashboard = () => {
       } 
     }`;
     try {
-      const res = await fetch('http://134.209.65.153:8085/graphql', {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8085/graphql';
+      
+      const res = await fetch(API_URL, {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables: { anio: parseInt(anio) } }),
       });
+
       const result = await res.json();
       setRawData(result.data?.recibosConsolidados || []);
       setTodosLosSectores(result.data?.todosLosSectores || []);

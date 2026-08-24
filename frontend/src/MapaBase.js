@@ -98,17 +98,37 @@ const MapaBase = () => {
   const offset = useRef({ x: 0, y: 0 });
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
 
+  // 1. CARGA INICIAL LIGERA (Sin recibos ni luminarias pesadas para agilizar la apertura)
   useEffect(() => {
     const query = `{ 
       todosLosSectores { 
         id clave clasificacion latitud longitud consumoIdeal consumoAceptable consumoMaximo nombreColonia medidor cuenta carga cpd tarifa 
-        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones } 
-        luminarias { id latitud longitud capacidad cantidadPostes luminariasPorPoste } 
       } 
     }`;
     fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) })
     .then(r => r.json()).then(res => { if (res.data?.todosLosSectores) setTodosLosSectores(res.data.todosLosSectores); });
   }, []);
+
+  // 2. CARGA BAJO DEMANDA (Descarga recibos y luminarias solo del sector seleccionado)
+  const cargarDetalleSector = (secId) => {
+    const query = `{ 
+      sector(id: "${secId}") { 
+        id 
+        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones } 
+        luminarias { id latitud longitud capacidad cantidadPostes luminariasPorPoste } 
+      } 
+    }`;
+    
+    fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) })
+    .then(r => r.json())
+    .then(res => { 
+      if (res.data?.sector) {
+        setSectorActivo(prev => prev && prev.id === secId ? { ...prev, ...res.data.sector } : prev);
+        // Actualizamos también dentro de la lista general para mantener los datos sincronizados
+        setTodosLosSectores(prev => prev.map(s => s.id === secId ? { ...s, ...res.data.sector } : s));
+      }
+    });
+  };
 
   const sugerenciasFiltradas = useMemo(() => {
     if (busqueda.length < 2 || !mostrarSugerencias) return [];
@@ -196,6 +216,7 @@ const MapaBase = () => {
                   setModoBusquedaIndividual(true); 
                   setVerGraficaConsumo(false); 
                   setIdsSectoresVisibles([sug.dato.id]);
+                  cargarDetalleSector(sug.dato.id);
                 }
               }} style={{ padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid #f8fafc', fontSize: '12px', fontWeight: '800' }}>
                 {sug.tipo === 'COLONIA' ? '📍' : '⚡'} {sug.nombre}
@@ -220,6 +241,8 @@ const MapaBase = () => {
                 setSectorActivo(sec); 
                 setModoBusquedaIndividual(false); 
                 setIdsSectoresVisibles(prev => prev.includes(sec.id) ? prev.filter(id => id !== sec.id) : [...prev, sec.id]);
+                // Disparamos la carga de detalles al hacer clic en el marcador
+                cargarDetalleSector(sec.id);
               }}}>
               <MapTooltip direction="top" offset={[0, -15]} opacity={0.9}><span style={{ fontWeight: '800', fontSize: '12px' }}>{sec.id}</span></MapTooltip>
             </Marker>

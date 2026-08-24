@@ -114,8 +114,9 @@ const App = () => {
         position: 'relative', 
         width: '100%',
         height: '100%',
-        overflowY: (tab === 'dashboard' || tab === 'captura' || tab === 'tracker') ? 'auto' : 'hidden' 
+        overflowY: (tab === 'dashboard' || tab === 'manager' || tab === 'censo' || tab === 'captura' || tab === 'tracker') ? 'auto' : 'hidden' 
       }}>
+      
         {tab === 'home' && (
           <Home onLogoClick={() => { setShowRegisterMsg(false); setTab('login'); }} />
         )}

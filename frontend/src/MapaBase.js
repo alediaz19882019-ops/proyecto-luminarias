@@ -86,7 +86,7 @@ const MapaBase = () => {
   const [modoBusquedaIndividual, setModoBusquedaIndividual] = useState(false);
   const [verAlumbrado, setVerAlumbrado] = useState(true);
   const [verInmuebles, setVerInmuebles] = useState(true);
-  const [soloAlertas, setSoloAlertas] = useState(false); // NUEVO ESTADO
+  const [soloAlertas, setSoloAlertas] = useState(false);
   const [anioSeleccionado, setAnioSeleccionado] = useState(2026);
   const [verGraficaConsumo, setVerGraficaConsumo] = useState(false);
   const [mostrarCFE, setMostrarCFE] = useState(false);
@@ -122,7 +122,6 @@ const MapaBase = () => {
     return todosLosSectores.filter(s => {
       const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
       
-      // Lógica para detectar Alerta (Rojo)
       const recibos = s.recibos || [];
       const ultimoRecibo = [...recibos].sort((a, b) => {
         const anioDiff = parseInt(b.anio) - parseInt(a.anio);
@@ -136,8 +135,6 @@ const MapaBase = () => {
       if (!esInmueble && !verAlumbrado) return false;
       if (modoBusquedaIndividual && sectorActivo) return s.id === sectorActivo.id;
       if (coloniaFiltrada && s.nombreColonia?.toUpperCase() !== coloniaFiltrada.toUpperCase()) return false;
-      
-      // Filtro de Alerta Rojo
       if (soloAlertas && !esAlerta) return false;
 
       return true;
@@ -209,7 +206,11 @@ const MapaBase = () => {
       </div>
 
        <MapContainer center={[20.628, -87.076]} zoom={13} style={{ height: '100%', zIndex: 1 }}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer 
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors - Alumbrado Playa del Carmen (alediaz19882019@gmail.com)'
+          maxZoom={19}
+        />
         <ActualizarMapa sector={sectorActivo} colonia={coloniaFiltrada} todos={todosLosSectores} />
         
         <Pane name="sectores" style={{ zIndex: 400 }}>
@@ -238,7 +239,6 @@ const MapaBase = () => {
         <button onClick={() => setVerAlumbrado(!verAlumbrado)} style={{ background: verAlumbrado ? '#3b82f6' : 'white', color: verAlumbrado ? 'white' : '#64748b', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> ALUMBRADO</button>
         <button onClick={() => setVerInmuebles(!verInmuebles)} style={{ background: verInmuebles ? '#ff8c00ff' : 'white', color: verInmuebles ? 'white' : '#64748b', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> INMUEBLES</button>
         
-        {/* BOTÓN ALERTA ROJO */}
         <button onClick={() => setSoloAlertas(!soloAlertas)} style={{ background: soloAlertas ? '#dc2626' : 'white', color: soloAlertas ? 'white' : '#dc2626', border: '2px solid #dc2626', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> ALERTAS</button>
         
         <button onClick={() => { if(sectorActivo) setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); }} style={{ background: verGraficaConsumo ? '#8b5cf6' : 'white', color: verGraficaConsumo ? 'white' : '#8b5cf6', border: '2px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}> GRÁFICA</button>
@@ -250,7 +250,7 @@ const MapaBase = () => {
           setBusqueda(""); 
           setColoniaFiltrada(null); 
           setModoBusquedaIndividual(false); 
-          setSoloAlertas(false); // Limpiar alertas en Clean
+          setSoloAlertas(false); 
         }} style={{ background: '#f1f5f9', color: '#ef4444', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}>CLEAN</button>
         
         <select value={anioSeleccionado} onChange={(e) => setAnioSeleccionado(parseInt(e.target.value))} style={{ background: 'white', border: '1px solid #000', padding: '10px 15px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio}>{anio}</option>)}</select>

@@ -14,7 +14,7 @@ const Home = ({ onLogoClick }) => {
             animation: heartbeat 10s ease-in-out infinite;
           }
           
-          /* Ocultar elementos globales mientras esta pantalla estÃŠ activa */
+          /* Ocultar elementos globales mientras esta pantalla esté activa */
           nav, header, footer, .navbar, .sidebar { 
             display: none !important; 
           }
@@ -29,22 +29,22 @@ const Home = ({ onLogoClick }) => {
       {/* Contenedor Interactivo */}
       <div 
         onClick={onLogoClick} 
-        className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black"
+        className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black p-4"
       >
         <img 
-          src="/static/uploads/alejo.jpeg" 
-          alt="Imagen de Bienvenida" 
-          className="w-full h-full object-contain animate-full-photo"
-          style={{ 
-            display: 'block',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            objectFit: 'contain'
-          }}
-          onError={(e) => {
-            console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
-            e.target.style.backgroundColor = '#020202';
-          }}
+  src="/static/uploads/alejo.jpeg" 
+  alt="Imagen de Bienvenida" 
+  /* w-[98%] hace que en el celular se vea enorme. sm:w-full deja intacta la PC */
+  className="w-[98%] sm:w-full h-auto object-contain animate-full-photo"
+  style={{ 
+    display: 'block',
+    maxHeight: '92vh' // Permite que crezca más verticalmente en el teléfono
+  }}
+  onError={(e) => {
+    console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
+    e.target.style.backgroundColor = '#020202';
+  }}
+/>
         />
         
         {/* Capa de degradado inferior para dar elegancia */}

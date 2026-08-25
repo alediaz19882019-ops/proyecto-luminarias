@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import MapaBase from './MapaBase';
 import Manager from './Manager';
-import Censo from './Censo'; // <--- Importamos la nueva página de Censo
+import Censo from './Censo'; // <--- Importamos la página de Censo
 import Login from './Login';
 import Home from './Home';
 import Dashboard from './Dashboard';
@@ -54,7 +54,7 @@ const App = () => {
           boxShadow: '0 4px 15px rgba(0,0,0,0.2)' 
         }}>
           <h2 style={{ margin: 0, fontSize: '14px', fontWeight: 900, letterSpacing: '1px' }}>
-            SMART LIGHTING <span style={{color: COLORS.accent}}> Playa </span>
+            SMART  <span style={{color: COLORS.accent}}> PLAYA </span>
           </h2>
           
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -62,7 +62,7 @@ const App = () => {
               { id: 'mapaBase', label: 'MAPA' },
               { id: 'dashboard', label: 'DASHBOARD' },
               { id: 'manager', label: 'MANAGER' },
-              { id: 'censo', label: 'CENSO' } // <--- Agregamos la pestaña Censo a la barra
+              { id: 'censo', label: 'CENSO' }
             ].map(t => (
               <span 
                 key={t.id} 
@@ -125,6 +125,7 @@ const App = () => {
           <Login 
             onLoginSuccess={handleLoginSuccess} 
             onRegisterClick={() => setShowRegisterMsg(true)} 
+            onGoHome={() => { setShowRegisterMsg(false); setTab('home'); }} 
           />
         )}
 
@@ -180,7 +181,7 @@ const App = () => {
             {tab === 'mapaBase' && <MapaBase />}
             {tab === 'dashboard' && <Dashboard />}
             {tab === 'manager' && <Manager />}
-            {tab === 'censo' && <Censo />} {/* <--- Renderiza la página de Censo cuando se selecciona */}
+            {tab === 'censo' && <Censo />}
           </>
         ) : (
           !isLoggedIn && tab !== 'home' && tab !== 'login' && !showRegisterMsg && (

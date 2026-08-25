@@ -98,36 +98,18 @@ const MapaBase = () => {
   const offset = useRef({ x: 0, y: 0 });
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
 
-  // 1. CARGA INICIAL ULTRALIGERA: Solo datos básicos para pintar los puntos en el mapa rápidamente
+  // CARGA COMPLETA INICIAL (Igual a tu estructura que sí abría las luminarias)
   useEffect(() => {
     const query = `{ 
       todosLosSectores { 
-        id clave clasificacion latitud longitud consumoIdeal consumoAceptable consumoMaximo nombreColonia 
+        id clave clasificacion latitud longitud consumoIdeal consumoAceptable consumoMaximo nombreColonia medidor cuenta carga cpd tarifa 
+        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones } 
+        luminarias { id latitud longitud capacidad cantidadPostes luminariasPorPoste } 
       } 
     }`;
     fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) })
     .then(r => r.json()).then(res => { if (res.data?.todosLosSectores) setTodosLosSectores(res.data.todosLosSectores); });
   }, []);
-
-  // 2. CARGA BAJO DEMANDA: Descarga recibos, luminarias y datos CFE solo del sector que elijas o busques
-  const cargarDetalleSector = (secId) => {
-    const query = `{ 
-      sector(id: "${secId}") { 
-        id medidor cuenta carga cpd tarifa 
-        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones } 
-        luminarias { id latitud longitud capacidad cantidadPostes luminariasPorPoste } 
-      } 
-    }`;
-    
-    fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) })
-    .then(r => r.json())
-    .then(res => { 
-      if (res.data?.sector) {
-        setSectorActivo(prev => prev && prev.id === secId ? { ...prev, ...res.data.sector } : prev);
-        setTodosLosSectores(prev => prev.map(s => s.id === secId ? { ...s, ...res.data.sector } : s));
-      }
-    });
-  };
 
   const sugerenciasFiltradas = useMemo(() => {
     if (busqueda.length < 2 || !mostrarSugerencias) return [];
@@ -140,7 +122,6 @@ const MapaBase = () => {
   const sectoresMostrados = useMemo(() => {
     return todosLosSectores.filter(s => {
       const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
-      
       const recibos = s.recibos || [];
       const ultimoRecibo = [...recibos].sort((a, b) => {
         const anioDiff = parseInt(b.anio) - parseInt(a.anio);
@@ -215,7 +196,6 @@ const MapaBase = () => {
                   setModoBusquedaIndividual(true); 
                   setVerGraficaConsumo(false); 
                   setIdsSectoresVisibles([sug.dato.id]);
-                  cargarDetalleSector(sug.dato.id);
                 }
               }} style={{ padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid #f8fafc', fontSize: '12px', fontWeight: '800' }}>
                 {sug.tipo === 'COLONIA' ? '📍' : '⚡'} {sug.nombre}
@@ -226,11 +206,7 @@ const MapaBase = () => {
       </div>
 
        <MapContainer center={[20.628, -87.076]} zoom={13} style={{ height: '100%', zIndex: 1 }}>
-        <TileLayer 
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors - Alumbrado Playa del Carmen (alediaz19882019@gmail.com)'
-          maxZoom={19}
-        />
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <ActualizarMapa sector={sectorActivo} colonia={coloniaFiltrada} todos={todosLosSectores} />
         
         <Pane name="sectores" style={{ zIndex: 400 }}>
@@ -240,7 +216,6 @@ const MapaBase = () => {
                 setSectorActivo(sec); 
                 setModoBusquedaIndividual(false); 
                 setIdsSectoresVisibles(prev => prev.includes(sec.id) ? prev.filter(id => id !== sec.id) : [...prev, sec.id]);
-                cargarDetalleSector(sec.id);
               }}}>
               <MapTooltip direction="top" offset={[0, -15]} opacity={0.9}><span style={{ fontWeight: '800', fontSize: '12px' }}>{sec.id}</span></MapTooltip>
             </Marker>
@@ -259,11 +234,8 @@ const MapaBase = () => {
       <div style={{ position: 'absolute', bottom: 50, left: 10, zIndex: 5000, display: 'flex', gap: '5px', flexWrap: 'nowrap', maxWidth: '900px', alignItems: 'center' }}>
         <button onClick={() => setVerAlumbrado(!verAlumbrado)} style={{ background: verAlumbrado ? '#3b82f6' : 'white', color: verAlumbrado ? 'white' : '#64748b', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> ALUMBRADO</button>
         <button onClick={() => setVerInmuebles(!verInmuebles)} style={{ background: verInmuebles ? '#ff8c00ff' : 'white', color: verInmuebles ? 'white' : '#64748b', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> INMUEBLES</button>
-        
         <button onClick={() => setSoloAlertas(!soloAlertas)} style={{ background: soloAlertas ? '#dc2626' : 'white', color: soloAlertas ? 'white' : '#dc2626', border: '2px solid #dc2626', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 800, fontSize: '11px' }}> ALERTAS</button>
-        
         <button onClick={() => { if(sectorActivo) setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); }} style={{ background: verGraficaConsumo ? '#8b5cf6' : 'white', color: verGraficaConsumo ? 'white' : '#8b5cf6', border: '2px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}> GRÁFICA</button>
-        
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
           setSectorActivo(null); 
@@ -273,7 +245,6 @@ const MapaBase = () => {
           setModoBusquedaIndividual(false); 
           setSoloAlertas(false); 
         }} style={{ background: '#f1f5f9', color: '#ef4444', border: '1px solid #000', padding: '10px 18px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}>CLEAN</button>
-        
         <select value={anioSeleccionado} onChange={(e) => setAnioSeleccionado(parseInt(e.target.value))} style={{ background: 'white', border: '1px solid #000', padding: '10px 15px', borderRadius: '50px', fontWeight: 800, fontSize: '11px' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio}>{anio}</option>)}</select>
       </div>
 

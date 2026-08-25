@@ -32,19 +32,21 @@ const Home = ({ onLogoClick }) => {
         className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black p-4 pt-12 md:pt-16"
       >
         <img 
-  src="/static/uploads/alejo.jpeg" 
-  alt="Imagen de Bienvenida" 
-  /* w-[98%] hace que en el celular se vea enorme. sm:w-full deja intacta la PC */
-  className="w-[120%] sm:w-full h-auto object-contain animate-full-photo"
-  style={{ 
-    display: 'block',
-    maxHeight: '90vh' // Permite que crezca más verticalmente en el teléfono
-  }}
-  onError={(e) => {
-    console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
-    e.target.style.backgroundColor = '#020202';
-  }}
-/>
+          src="/static/uploads/alejo.jpeg" 
+          alt="Imagen de Bienvenida" 
+          className="w-full sm:w-auto h-auto object-contain animate-full-photo"
+          style={{ 
+            display: 'block',
+            /* Cambiamos max-width y agregamos un transform scale si quieres forzarla a verse más grande */
+            maxWidth: 'none',
+            width: '130vw', // O puedes probar con un valor fijo mayor como '600px'
+            maxHeight: '110vh',
+            pt: '20px'
+          }}
+          onError={(e) => {
+            console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
+            e.target.style.backgroundColor = '#272525ff';
+          }}
         />
         
         {/* Capa de degradado inferior para dar elegancia */}
@@ -53,7 +55,7 @@ const Home = ({ onLogoClick }) => {
         {/* Texto sutil en la parte inferior */}
         <div className="absolute bottom-12 w-full text-center">
             <p className="text-white/40 text-[10px] uppercase tracking-[0.5em] font-light animate-pulse">
-                Click para ingresar
+            
             </p>
         </div>
       </div>

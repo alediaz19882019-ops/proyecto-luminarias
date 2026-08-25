@@ -2,7 +2,7 @@ import React from 'react';
 
 const Home = ({ onLogoClick }) => {
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-[#020202] overflow-hidden m-0 p-0" style={{ zIndex: 9999 }}>
+    <div className="fixed inset-0 w-screen h-screen bg-black overflow-hidden m-0 p-0" style={{ zIndex: 9999, backgroundColor: '#000000' }}>
       <style>
         {`
           @keyframes heartbeat {
@@ -18,7 +18,8 @@ const Home = ({ onLogoClick }) => {
           nav, header, footer, .navbar, .sidebar { 
             display: none !important; 
           }
-          body { 
+          body, html { 
+            background-color: #000000 !important;
             overflow: hidden !important; 
             margin: 0; 
             padding: 0; 
@@ -26,10 +27,11 @@ const Home = ({ onLogoClick }) => {
         `}
       </style>
 
-      {/* Contenedor Interactivo */}
+      {/* Contenedor Interactivo con fondo negro absoluto */}
       <div 
         onClick={onLogoClick} 
-        className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black p-4 pt-12 md:pt-16"
+        className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black p-0 m-0"
+        style={{ backgroundColor: '#000000' }}
       >
         <img 
           src="/static/uploads/alejo.jpeg" 
@@ -37,25 +39,22 @@ const Home = ({ onLogoClick }) => {
           className="w-full sm:w-auto h-auto object-contain animate-full-photo"
           style={{ 
             display: 'block',
-            /* Cambiamos max-width y agregamos un transform scale si quieres forzarla a verse más grande */
             maxWidth: 'none',
-            width: '130vw', // O puedes probar con un valor fijo mayor como '600px'
-            maxHeight: '110vh',
-            pt: '20px'
+            width: '130vw', 
+            maxHeight: '110vh'
           }}
           onError={(e) => {
             console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
-            e.target.style.backgroundColor = '#272525ff';
+            e.target.style.backgroundColor = '#000000';
           }}
         />
         
-        {/* Capa de degradado inferior para dar elegancia */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+        {/* Capa de degradado eliminada o sutil si deseas fundir los bordes completamente a negro */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black pointer-events-none opacity-40"></div>
 
         {/* Texto sutil en la parte inferior */}
         <div className="absolute bottom-12 w-full text-center">
             <p className="text-white/40 text-[10px] uppercase tracking-[0.5em] font-light animate-pulse">
-            
             </p>
         </div>
       </div>

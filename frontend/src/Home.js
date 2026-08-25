@@ -29,7 +29,7 @@ const Home = ({ onLogoClick }) => {
       {/* Contenedor Interactivo */}
       <div 
         onClick={onLogoClick} 
-        className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black p-4"
+        className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black p-4 pt-12 md:pt-16"
       >
         <img 
   src="/static/uploads/alejo.jpeg" 

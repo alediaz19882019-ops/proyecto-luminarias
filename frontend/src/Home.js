@@ -35,10 +35,10 @@ const Home = ({ onLogoClick }) => {
   src="/static/uploads/alejo.jpeg" 
   alt="Imagen de Bienvenida" 
   /* w-[98%] hace que en el celular se vea enorme. sm:w-full deja intacta la PC */
-  className="w-[98%] sm:w-full h-auto object-contain animate-full-photo"
+  className="w-[120%] sm:w-full h-auto object-contain animate-full-photo"
   style={{ 
     display: 'block',
-    maxHeight: '92vh' // Permite que crezca más verticalmente en el teléfono
+    maxHeight: '90vh' // Permite que crezca más verticalmente en el teléfono
   }}
   onError={(e) => {
     console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");

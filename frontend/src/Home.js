@@ -32,18 +32,17 @@ const Home = ({ onLogoClick }) => {
         className="relative w-full h-full cursor-pointer flex items-center justify-center bg-black"
       >
         <img 
-          // AsegÃērate de que la extensiÃŗn sea .jpeg y no .jpg
           src="/static/uploads/alejo.jpeg" 
           alt="Imagen de Bienvenida" 
-          className="w-full h-full object-cover animate-full-photo"
+          className="w-full h-full object-contain animate-full-photo"
           style={{ 
             display: 'block',
-            minWidth: '100vw',
-            minHeight: '100vh'
+            maxWidth: '100vw',
+            maxHeight: '100vh',
+            objectFit: 'contain'
           }}
           onError={(e) => {
-            console.error("No se encontrÃŗ la foto en public/static/uploads/alejo.jpeg");
-            // Si falla, ponemos un color oscuro para que no se vea blanco
+            console.error("No se encontró la foto en public/static/uploads/alejo.jpeg");
             e.target.style.backgroundColor = '#020202';
           }}
         />

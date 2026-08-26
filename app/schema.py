@@ -2,15 +2,11 @@ import strawberry
 from typing import List, Optional
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import func
-from passlib.context import CryptContext
 import datetime
 
 # Importamos tus modelos y la sesión
 from app.database import SessionLocal
 from app import models 
-
-# --- CONFIGURACIÓN DE SEGURIDAD PARA CONTRASEÑAS (BCRYPT) ---
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- FUNCIÓN AUXILIAR PARA RECALCULAR CONSUMOS, CARGA Y CPD AUTOMÁTICAMENTE ---
 def recalcular_consumos_sector(db, sector_id: int):
@@ -155,19 +151,15 @@ class SectorInput:
 
 @strawberry.type
 class Query:
-    # --- VALIDACIÓN DE CREDENCIALES CONTRA MYSQL ---
+    # --- VALIDACIÓN DE CREDENCIALES CONTRA MYSQL (TEXTO PLANO) ---
     @strawberry.field
     def validar_usuario(self, usuario: str, password: str) -> bool:
         db = SessionLocal()
         try:
-            # Buscamos al usuario en la tabla 'usuarios' de MySQL
             user_db = db.query(models.Usuario).filter(models.Usuario.usuario == usuario).first()
-            
             if not user_db:
                 return False
-                
-            # Verificamos la contraseña encriptada con bcrypt
-            return pwd_context.verify(password, user_db.password)
+            return user_db.password == password
         finally:
             db.close()
             
@@ -399,7 +391,6 @@ class Mutation:
             luminaria.descripcion = input.descripcion
             db.flush()
 
-            # Recalculamos carga, ideal, aceptable (+50%), máximo (+100%) y CPD automáticamente
             recalcular_consumos_sector(db, luminaria.sector_id)
 
             db.commit()

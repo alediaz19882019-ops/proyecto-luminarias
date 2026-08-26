@@ -66,7 +66,6 @@ class ReciboMensual(Base):
     tipo_servicio = Column(String(50), default="ALUMBRADO")
     es_consolidado = Column(Boolean, default=False)
     
-    # Campo corregido (antes faltaba en este modelo)
     notas_observaciones = Column(Text, nullable=True) 
 
     sector = relationship("Sector", back_populates="recibos_mensuales")
@@ -78,10 +77,8 @@ class ReciboDetallado(Base):
     mes = Column(String(10), nullable=False)
     consumo_kwh = Column(Float, nullable=False) 
     
-    # --- NUEVAS COLUMNAS AGREGADAS ---
     lectura_anterior = Column(Float, nullable=True)
     lectura_actual = Column(Float, nullable=True)
-    # ---------------------------------
     
     importe_recibo = Column(Float, nullable=False) 
     sector_id = Column(Integer, ForeignKey("sectores.id"), nullable=False) 
@@ -102,7 +99,7 @@ class Mantenimiento(Base):
     
     sector = relationship("Sector", back_populates="mantenimientos")
 
-    class Usuario(Base):
+class Usuario(Base):
     __tablename__ = "usuarios"
     
     id = Column(Integer, primary_key=True, index=True)

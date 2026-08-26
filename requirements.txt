@@ -4,4 +4,4 @@ strawberry-graphql[fastapi]
 sqlalchemy
 mysql-connector-python
 python-dateutil
-bcrypt
+passlib[bcrypt]

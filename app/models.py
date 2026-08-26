@@ -101,3 +101,12 @@ class Mantenimiento(Base):
     fecha = Column(DateTime, default=datetime.datetime.utcnow)
     
     sector = relationship("Sector", back_populates="mantenimientos")
+
+    class Usuario(Base):
+    __tablename__ = "usuarios"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    usuario = Column(String(50), unique=True, nullable=False)
+    password = Column(String(255), nullable=False)
+    rol = Column(String(50), nullable=False)
+    nombre = Column(String(100), nullable=False)

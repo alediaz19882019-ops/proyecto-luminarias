@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Database, Save, Building2, Search, CheckCircle2, AlertCircle, 
   Loader2, RefreshCw, Calendar, FileSpreadsheet, Lock, Unlock, 
@@ -7,8 +7,10 @@ import {
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
-
 const ORDEN_MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+// Memoria global en RAM: Si ya se descargaron una vez en la sesión, no se vuelven a pedir nunca
+let memoriaGlobalSectores = null;
 
 const Manager = () => {
   const [sectores, setSectores] = useState([]);
@@ -45,7 +47,66 @@ const Manager = () => {
     notasObservaciones: ''
   });
 
-  const cargarSectores = () => {
+  const seleccionarSector = useCallback((sec) => {
+    setSectorForm({
+      id: sec.id || '',
+      clave: sec.clave || '',
+      clasificacion: sec.clasificacion || 'ALUMBRADO PUBLICO',
+      nombreColonia: sec.nombreColonia || '',
+      medidor: sec.medidor || '',
+      cuenta: sec.cuenta || '',
+      carga: parseFloat(sec.carga) || 0,
+      cpd: parseFloat(sec.cpd) || 0,
+      tarifa: sec.tarifa || '5A',
+      consumoIdeal: parseFloat(sec.consumoIdeal) || 0,
+      consumoAceptable: parseFloat(sec.consumoAceptable) || 0,
+      consumoMaximo: parseFloat(sec.consumoMaximo) || 0,
+      recibos: sec.recibos || []
+    });
+
+    if (sec.recibos && sec.recibos.length > 0) {
+      const ultimo = sec.recibos[sec.recibos.length - 1];
+      setReciboForm({
+        mes: ultimo.mes || 'Jul',
+        anio: parseInt(ultimo.anio) || 2026,
+        consumoKwh: parseFloat(ultimo.consumoKwh) || 0,
+        importe: parseFloat(ultimo.importe) || 0,
+        lecturaAnterior: parseFloat(ultimo.lecturaAnterior) || 0,
+        lecturaActual: parseFloat(ultimo.lecturaActual) || 0,
+        notasObservaciones: ultimo.notasObservaciones || ''
+      });
+    } else {
+      setReciboForm({ mes: 'Jul', anio: 2026, consumoKwh: 0, importe: 0, lecturaAnterior: 0, lecturaActual: 0, notasObservaciones: '' });
+    }
+  }, []);
+
+  // Carga de sectores optimizada con RAM global, sessionStorage y candado anti-duplicados
+  const cargarSectores = useCallback((forzarRecarga = false) => {
+    const cacheKey = 'cache_manager_sectores';
+    const flagKey = 'cargando_manager_en_proceso';
+
+    if (!forzarRecarga && memoriaGlobalSectores) {
+      setSectores(memoriaGlobalSectores);
+      if (memoriaGlobalSectores.length > 0 && !sectorForm.id) {
+        seleccionarSector(memoriaGlobalSectores[0]);
+      }
+      return;
+    }
+
+    const datosGuardados = sessionStorage.getItem(cacheKey);
+    if (!forzarRecarga && datosGuardados) {
+      const parsedData = JSON.parse(datosGuardados);
+      memoriaGlobalSectores = parsedData;
+      setSectores(parsedData);
+      if (parsedData.length > 0 && !sectorForm.id) {
+        seleccionarSector(parsedData[0]);
+      }
+      return;
+    }
+
+    if (sessionStorage.getItem(flagKey) === 'true' && !forzarRecarga) return;
+    sessionStorage.setItem(flagKey, 'true');
+
     setLoading(true);
     const query = `{
       todosLosSectores {
@@ -81,56 +142,28 @@ const Manager = () => {
     })
       .then(res => res.json())
       .then(data => {
-        if (data.errors) {
-          console.error("Errores de GraphQL:", data.errors);
-        }
+        sessionStorage.removeItem(flagKey);
         if (data.data?.todosLosSectores) {
-          setSectores(data.data.todosLosSectores);
+          const nuevosSectores = data.data.todosLosSectores;
+          memoriaGlobalSectores = nuevosSectores;
+          setSectores(nuevosSectores);
+          sessionStorage.setItem(cacheKey, JSON.stringify(nuevosSectores));
+          if (nuevosSectores.length > 0 && !sectorForm.id) {
+            seleccionarSector(nuevosSectores[0]);
+          }
         }
         setLoading(false);
       })
       .catch(err => {
+        sessionStorage.removeItem(flagKey);
         console.error("Error de conexión:", err);
         setLoading(false);
       });
-  };
+  }, [sectorForm.id, seleccionarSector]);
 
   useEffect(() => {
     cargarSectores();
-  }, []);
-
-  const seleccionarSector = (sec) => {
-    setSectorForm({
-      id: sec.id || '',
-      clave: sec.clave || '',
-      clasificacion: sec.clasificacion || 'ALUMBRADO PUBLICO',
-      nombreColonia: sec.nombreColonia || '',
-      medidor: sec.medidor || '',
-      cuenta: sec.cuenta || '',
-      carga: parseFloat(sec.carga) || 0,
-      cpd: parseFloat(sec.cpd) || 0,
-      tarifa: sec.tarifa || '5A',
-      consumoIdeal: parseFloat(sec.consumoIdeal) || 0,
-      consumoAceptable: parseFloat(sec.consumoAceptable) || 0,
-      consumoMaximo: parseFloat(sec.consumoMaximo) || 0,
-      recibos: sec.recibos || []
-    });
-
-    if (sec.recibos && sec.recibos.length > 0) {
-      const ultimo = sec.recibos[sec.recibos.length - 1];
-      setReciboForm({
-        mes: ultimo.mes || 'Jul',
-        anio: parseInt(ultimo.anio) || 2026,
-        consumoKwh: parseFloat(ultimo.consumoKwh) || 0,
-        importe: parseFloat(ultimo.importe) || 0,
-        lecturaAnterior: parseFloat(ultimo.lecturaAnterior) || 0,
-        lecturaActual: parseFloat(ultimo.lecturaActual) || 0,
-        notasObservaciones: ultimo.notasObservaciones || ''
-      });
-    } else {
-      setReciboForm({ mes: 'Jul', anio: 2026, consumoKwh: 0, importe: 0, lecturaAnterior: 0, lecturaActual: 0, notasObservaciones: '' });
-    }
-  };
+  }, [cargarSectores]);
 
   const cambiarMes = (nuevoMes) => {
     const reciboExistente = (sectorForm.recibos || []).find(
@@ -214,7 +247,9 @@ const Manager = () => {
           setMensaje({ tipo: 'error', texto: `Error: ${detalleError}` });
         } else {
           setMensaje({ tipo: 'exito', texto: `Captura de ${reciboForm.mes} ${reciboForm.anio} guardada exitosamente.` });
-          cargarSectores();
+          memoriaGlobalSectores = null; 
+          sessionStorage.removeItem('cache_manager_sectores');
+          cargarSectores(true); 
           setTimeout(() => setMensaje(null), 3000);
         }
       })
@@ -265,7 +300,9 @@ const Manager = () => {
             importe: 0,
             notasObservaciones: ''
           }));
-          cargarSectores();
+          memoriaGlobalSectores = null;
+          sessionStorage.removeItem('cache_manager_sectores');
+          cargarSectores(true);
           setTimeout(() => setMensaje(null), 3000);
         }
       })
@@ -359,7 +396,7 @@ const Manager = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-black tracking-wider uppercase text-white"></h1>
+                <h1 className="text-sm font-black tracking-wider uppercase text-white">MANAGER</h1>
                 <span className="bg-rose-500/10 text-rose-400 text-[9px] font-bold px-2 py-0.5 rounded-full border border-rose-500/20 uppercase tracking-widest">
                   CAPTURA DE DATOS
                 </span>
@@ -370,7 +407,11 @@ const Manager = () => {
 
           <div className="flex items-center gap-2">
             <button 
-              onClick={cargarSectores} 
+              onClick={() => {
+                memoriaGlobalSectores = null;
+                sessionStorage.removeItem('cache_manager_sectores');
+                cargarSectores(true);
+              }} 
               className="bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
             >
               <RefreshCw size={13} className={loading ? "animate-spin text-rose-400" : ""} /> 

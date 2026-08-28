@@ -103,6 +103,17 @@ const Dashboard = () => {
   };
 
   const fetchData = useCallback(async () => {
+    const cacheKey = `cache_dashboard_${anio}`;
+    const datosGuardados = sessionStorage.getItem(cacheKey);
+
+    // Si ya existen datos en caché para este año, se cargan de inmediato sin llamar a la red
+    if (datosGuardados) {
+      const parsed = JSON.parse(datosGuardados);
+      setRawData(parsed.rawData || []);
+      setTodosLosSectores(parsed.todosLosSectores || []);
+      return;
+    }
+
     const query = `query($anio: Int!) { 
       recibosConsolidados(anio: $anio) { mes consumoKwh importe tipoServicio }
       todosLosSectores { 
@@ -121,8 +132,14 @@ const Dashboard = () => {
       });
 
       const result = await res.json();
-      setRawData(result.data?.recibosConsolidados || []);
-      setTodosLosSectores(result.data?.todosLosSectores || []);
+      const newRaw = result.data?.recibosConsolidados || [];
+      const newSectores = result.data?.todosLosSectores || [];
+
+      setRawData(newRaw);
+      setTodosLosSectores(newSectores);
+
+      // Guardar en sessionStorage para agilizar próximas visitas en la misma pestaña
+      sessionStorage.setItem(cacheKey, JSON.stringify({ rawData: newRaw, todosLosSectores: newSectores }));
     } catch (err) { console.error("Error al cargar dashboard:", err); }
   }, [anio]);
 

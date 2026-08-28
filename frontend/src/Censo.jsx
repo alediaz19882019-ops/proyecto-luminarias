@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   MapPin, Plus, Trash2, Edit3, RefreshCw, 
   Layers, Search, CheckCircle2, Lock, Unlock, Check, Navigation, Disc, AlertTriangle, XCircle, FileText, ArrowLeft 
@@ -7,7 +7,7 @@ import { MapContainer, TileLayer, Marker, useMap, useMapEvents, CircleMarker, Pa
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8085/graphql';
+const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
 
 const ForzarRecargaMapa = () => {
   const map = useMap();
@@ -177,6 +177,9 @@ const CapturarClicMapa = ({ activoLuminaria, activoSector, onAgregarCoordenada }
   return null;
 };
 
+// Memoria global en RAM para evitar recargas dobles en la misma sesión de navegación
+let memoriaGlobalCenso = null;
+
 const Censo = () => {
   const [todosLosSectores, setTodosLosSectores] = useState([]);
   const [sectorSeleccionado, setSectorSeleccionado] = useState(null);
@@ -207,7 +210,27 @@ const Censo = () => {
 
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
 
-  const cargarSectoresWithLuminarias = () => {
+  // Función optimizada con caché de sesión y bandera anti-duplicados
+  const cargarSectoresWithLuminarias = useCallback((forzarRecarga = false) => {
+    const cacheKey = 'cache_censo_sectores';
+    const flagKey = 'cargando_censo_en_proceso';
+
+    if (!forzarRecarga && memoriaGlobalCenso) {
+      setTodosLosSectores(memoriaGlobalCenso);
+      return;
+    }
+
+    const datosGuardados = sessionStorage.getItem(cacheKey);
+    if (!forzarRecarga && datosGuardados) {
+      const parsedData = JSON.parse(datosGuardados);
+      memoriaGlobalCenso = parsedData;
+      setTodosLosSectores(parsedData);
+      return;
+    }
+
+    if (sessionStorage.getItem(flagKey) === 'true' && !forzarRecarga) return;
+    sessionStorage.setItem(flagKey, 'true');
+
     setLoading(true);
     const query = `{ 
       todosLosSectores { 
@@ -224,6 +247,7 @@ const Censo = () => {
     })
       .then(res => res.json())
       .then(data => {
+        sessionStorage.removeItem(flagKey);
         if (data.data?.todosLosSectores) {
           const listaMapeada = data.data.todosLosSectores.map(sec => ({
             ...sec,
@@ -233,21 +257,24 @@ const Censo = () => {
               observacion: lum.observacion || ''
             })) || []
           }));
+          memoriaGlobalCenso = listaMapeada;
           setTodosLosSectores(listaMapeada);
+          sessionStorage.setItem(cacheKey, JSON.stringify(listaMapeada));
         }
         setLoading(false);
       })
       .catch(err => {
+        sessionStorage.removeItem(flagKey);
         console.error("Error cargando sectores:", err);
         setLoading(false);
       });
-  };
+  }, []);
 
   useEffect(() => {
     cargarSectoresWithLuminarias();
-  }, []);
+  }, [cargarSectoresWithLuminarias]);
 
-  const seleccionarSectorLocal = (idSector) => {
+  const seleccionarSectorLocal = useCallback((idSector) => {
     const encontrado = todosLosSectores.find(s => String(s.id) === String(idSector));
     if (encontrado) {
       setSectorSeleccionado(encontrado);
@@ -258,7 +285,7 @@ const Censo = () => {
       setMensaje({ tipo: 'error', texto: `⚠️ No se encontró el sector en memoria.` });
       setTimeout(() => setMensaje(null), 3000);
     }
-  };
+  }, [todosLosSectores]);
 
   useEffect(() => {
     if (modoSeguimiento) {
@@ -289,8 +316,7 @@ const Censo = () => {
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
     return () => { if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modoSeguimiento, sectorSeleccionado, todosLosSectores]);
+  }, [modoSeguimiento, sectorSeleccionado, todosLosSectores, seleccionarSectorLocal]);
 
   const sugerenciasFiltradas = useMemo(() => {
     if (!busqueda.trim()) return [];
@@ -319,7 +345,15 @@ const Censo = () => {
       }
       return lum;
     });
-    setSectorSeleccionado({ ...sectorSeleccionado, luminarias: luminariasActualizadas });
+    const sectorActualizado = { ...sectorSeleccionado, luminarias: luminariasActualizadas };
+    setSectorSeleccionado(sectorActualizado);
+
+    // Actualizar también en la lista general y en la caché local
+    const listaActualizada = todosLosSectores.map(sec => String(sec.id) === String(sectorActualizado.id) ? sectorActualizado : sec);
+    setTodosLosSectores(listaActualizada);
+    memoriaGlobalCenso = listaActualizada;
+    sessionStorage.setItem('cache_censo_sectores', JSON.stringify(listaActualizada));
+
     if (luminariaSeleccionada && String(luminariaSeleccionada.id) === String(posteId)) {
       setLuminariaSeleccionada({ ...luminariaSeleccionada, estadoAuditoria: nuevoEstado, observacion: observacionTexto });
     }
@@ -373,7 +407,9 @@ const Censo = () => {
         if (!resData.errors) {
           setMensaje({ tipo: 'exito', texto: '💾 Sector actualizado correctamente.' });
           setEditandoSector(false);
-          cargarSectoresWithLuminarias();
+          memoriaGlobalCenso = null;
+          sessionStorage.removeItem('cache_censo_sectores');
+          cargarSectoresWithLuminarias(true);
         }
         setTimeout(() => setMensaje(null), 3000);
       });
@@ -401,7 +437,9 @@ const Censo = () => {
         if (!resData.errors) {
           setMensaje({ tipo: 'exito', texto: '⚡ Luminaria actualizada con éxito.' });
           setEditandoPoste(false);
-          cargarSectoresWithLuminarias();
+          memoriaGlobalCenso = null;
+          sessionStorage.removeItem('cache_censo_sectores');
+          cargarSectoresWithLuminarias(true);
         }
         setTimeout(() => setMensaje(null), 3000);
       });
@@ -415,7 +453,9 @@ const Censo = () => {
       .then(() => {
         setSaving(false); setLuminariaSeleccionada(null);
         setMensaje({ tipo: 'exito', texto: '🗑️ Luminaria eliminada.' });
-        cargarSectoresWithLuminarias();
+        memoriaGlobalCenso = null;
+        sessionStorage.removeItem('cache_censo_sectores');
+        cargarSectoresWithLuminarias(true);
         setTimeout(() => setMensaje(null), 3000);
       });
   };
@@ -445,7 +485,9 @@ const Censo = () => {
           setModoCrearLuminaria(false);
           setNuevaLuminariaForm({ cantidad_postes: 1, latitud: '', longitud: '', tipo_lampara: 'LED', descripcion: '', luminarias_por_poste: 1, capacidad: '70' });
           setMensaje({ tipo: 'exito', texto: `⚡ Luminaria guardada con éxito.` });
-          cargarSectoresWithLuminarias();
+          memoriaGlobalCenso = null;
+          sessionStorage.removeItem('cache_censo_sectores');
+          cargarSectoresWithLuminarias(true);
         }
         setTimeout(() => setMensaje(null), 3000);
       });
@@ -471,7 +513,9 @@ const Censo = () => {
         if (!resData.errors) {
           setModoCrearSector(false);
           setMensaje({ tipo: 'exito', texto: `🏢 Sector registrado correctamente.` });
-          cargarSectoresWithLuminarias(); 
+          memoriaGlobalCenso = null;
+          sessionStorage.removeItem('cache_censo_sectores');
+          cargarSectoresWithLuminarias(true); 
         }
         setTimeout(() => setMensaje(null), 3000);
       });
@@ -576,7 +620,7 @@ const Censo = () => {
                 <button onClick={() => { setModoCrearSector(true); setLuminariaSeleccionada(null); setSectorSeleccionado(null); setModoCrearLuminaria(false); }} className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase cursor-pointer">
                   <Plus size={10} className="inline" /> Sector
                 </button>
-                <button onClick={cargarSectoresWithLuminarias} className="bg-slate-900 text-slate-300 border border-slate-700 p-1 rounded-lg cursor-pointer" title="Sincronizar datos">
+                <button onClick={() => { memoriaGlobalCenso = null; sessionStorage.removeItem('cache_censo_sectores'); cargarSectoresWithLuminarias(true); }} className="bg-slate-900 text-slate-300 border border-slate-700 p-1 rounded-lg cursor-pointer" title="Sincronizar datos">
                   <RefreshCw size={11} className={loading ? "animate-spin text-cyan-400" : ""} />
                 </button>
               </div>

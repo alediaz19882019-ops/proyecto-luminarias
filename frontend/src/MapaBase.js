@@ -17,6 +17,19 @@ const formatearNumero = (num) => {
   }).format(parseFloat(num) || 0);
 };
 
+const CustomTooltipGrafica = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: 'rgba(15, 23, 42, 0.95)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.5)', boxShadow: '0 4px 12px rgba(0,0,0,0.8)' }}>
+        <p style={{ margin: 0, color: '#38bdf8', fontWeight: '900', fontSize: '11px', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+          {label}: {formatearNumero(payload[0].value)} kWh
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 const ActualizarMapa = ({ sector, colonia, todos }) => {
   const map = useMap();
   useEffect(() => {
@@ -119,6 +132,13 @@ const crearIconoPoste3D = (luminariasPorPoste = 1) => {
 
 const MapaBase = () => {
   const [todosLosSectores, setTodosLosSectores] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [notificacion, setNotificacion] = useState(null);
+
+  const mostrarToast = (mensaje, tipo = 'info') => {
+    setNotificacion({ mensaje, tipo });
+    setTimeout(() => setNotificacion(null), 3500);
+  };
   const [sectorActivo, setSectorActivo] = useState(null); 
   const [idsSectoresVisibles, setIdsSectoresVisibles] = useState([]); 
   const [busqueda, setBusqueda] = useState("");
@@ -132,6 +152,7 @@ const MapaBase = () => {
   const [verGraficaConsumo, setVerGraficaConsumo] = useState(false);
   const [mostrarCFE, setMostrarCFE] = useState(false);
   const [mostrarObservacion, setMostrarObservacion] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
   
   const [posGrafica, setPosGrafica] = useState({ x: window.innerWidth / 2 - 210, y: window.innerHeight / 2 - 220 });
   const arrastrandoGrafica = useRef(false);
@@ -141,10 +162,11 @@ const MapaBase = () => {
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
 
   useEffect(() => {
-    // Caché local en sessionStorage para evitar múltiples peticiones pesadas simultáneas
+    setCargando(true);
     const datosGuardados = sessionStorage.getItem('cache_todos_sectores');
     if (datosGuardados) {
       setTodosLosSectores(JSON.parse(datosGuardados));
+      setCargando(false);
       return;
     }
 
@@ -161,7 +183,15 @@ const MapaBase = () => {
       if (res.data?.todosLosSectores) {
         setTodosLosSectores(res.data.todosLosSectores);
         sessionStorage.setItem('cache_todos_sectores', JSON.stringify(res.data.todosLosSectores));
-      } 
+        mostrarToast('Datos sincronizados correctamente', 'exito');
+      } else {
+        mostrarToast('Error al obtener datos del servidor', 'error');
+      }
+      setCargando(false);
+    })
+    .catch(() => {
+      mostrarToast('Falla de conexión con el servidor GraphQL', 'error');
+      setCargando(false);
     });
   }, []);
 
@@ -240,6 +270,39 @@ const MapaBase = () => {
       style={{ height: '100vh', width: '100vw', position: 'relative', background: '#0b0f19', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}
     >
       
+      {/* SKELETON / SPINNER INDICADOR DE CARGA GLOBAL */}
+      {cargando && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(11, 15, 25, 0.85)', zIndex: 9999,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(6px)'
+        }}>
+          <div style={{
+            width: '48px', height: '48px', border: '4px solid rgba(56, 189, 248, 0.2)',
+            borderTop: '4px solid #38bdf8', borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ color: '#38bdf8', fontWeight: 800, fontSize: '14px', marginTop: '16px', letterSpacing: '0.05em' }}>
+            CARGANDO RED DE ALUMBRADO...
+          </p>
+          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {/* SISTEMA DE NOTIFICACIONES TOAST */}
+      {notificacion && (
+        <div style={{
+          position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10000, background: notificacion.tipo === 'error' ? 'rgba(239, 68, 68, 0.95)' : 'rgba(15, 23, 42, 0.95)',
+          color: notificacion.tipo === 'error' ? '#ffffff' : '#34d399', padding: '10px 20px', borderRadius: '12px', fontSize: '12px', fontWeight: 900,
+          boxShadow: '0 10px 25px rgba(0,0,0,0.7)', border: notificacion.tipo === 'error' ? '1px solid rgba(239, 68, 68, 0.6)' : '1px solid rgba(52, 211, 153, 0.6)',
+          backdropFilter: 'blur(8px)', animation: 'fadeInOut 3.5s ease'
+        }}>
+          {notificacion.tipo === 'error' ? '⚠️ ' : '✅ '} {notificacion.mensaje}
+        </div>
+      )}
+
       {/* MAPA CONTENEDOR */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
          <MapContainer center={[20.628, -87.076]} zoom={13} zoomControl={false} style={{ height: '100%', width: '100%' }}>
@@ -253,13 +316,12 @@ const MapaBase = () => {
                   setSectorActivo(sec); 
                   setModoBusquedaIndividual(false); 
                   setIdsSectoresVisibles(prev => prev.includes(sec.id) ? prev.filter(id => id !== sec.id) : [...prev, sec.id]);
+                  mostrarToast(`Sector ${sec.clave} seleccionado`, 'exito');
                 }}}>
-                <MapTooltip direction="top" offset={[0, -15]} opacity={0.95}><span style={{ fontWeight: '800', fontSize: '12px', color: '#0f172a' }}>{sec.id} - {sec.clave}</span></MapTooltip>
               </Marker>
             ))}
           </Pane>
 
-          {/* RENDERIZADO DE PUNTOS ROJOS Y POSTES 3D */}
           {todosLosSectores.filter(s => idsSectoresVisibles.includes(s.id)).map(s => 
             s.luminarias?.map(lum => {
               if (verModo3D) {
@@ -278,9 +340,11 @@ const MapaBase = () => {
                     radius={9} 
                     pathOptions={{ color: '#0f172a', fillColor: '#ff0000', fillOpacity: 0.9, weight: 1.5, pane: 'markerPane' }}>
                     <MapTooltip direction="top" className="tooltip-sin-fondo">
-                      <span style={{ color: '#facc15', fontWeight: '900', fontSize: '12px', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
-                        {lum.capacidad || '70'} Watts
-                      </span>
+                      <div style={{ background: 'rgba(15, 23, 42, 0.9)', padding: '3px 8px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.5)', boxShadow: '0 4px 12px rgba(0,0,0,0.8)' }}>
+                        <span style={{ color: '#38bdf8', fontWeight: '900', fontSize: '11px', textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                          {lum.capacidad || '70'} Watts
+                        </span>
+                      </div>
                     </MapTooltip>
                   </CircleMarker>
                 );
@@ -299,6 +363,46 @@ const MapaBase = () => {
         .leaflet-tooltip.tooltip-sin-fondo::before {
           display: none !important;
         }
+
+        .btn-menu-estilizado {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          z-index: 6000;
+          background: #1e293b;
+          color: #ffffff;
+          border: 2px solid #000000;
+          padding: 10px 18px;
+          border-radius: 50px;
+          cursor: pointer;
+          font-weight: 900;
+          font-size: 12px;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.6);
+          transition: all 0.2s;
+        }
+        .btn-menu-estilizado:hover, .btn-menu-estilizado.activo {
+          background: #38bdf8;
+          color: #0f172a;
+        }
+
+        .menu-desplegable-container {
+          display: none;
+          position: absolute;
+          top: 70px;
+          right: 20px;
+          z-index: 5999;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .menu-desplegable-container.abierto {
+          display: flex;
+        }
+
+        .menu-desplegable-container button:hover,
+        .menu-desplegable-container select:hover {
+          filter: brightness(1.25);
+          transform: scale(1.02);
+        }
       `}</style>
 
       {/* BUSCADOR EN LA ESQUINA SUPERIOR IZQUIERDA */}
@@ -315,12 +419,14 @@ const MapaBase = () => {
                   setColoniaFiltrada(sug.nombre);
                   setSectorActivo(null);
                   setModoBusquedaIndividual(false);
+                  mostrarToast(`Filtro aplicado: ${sug.nombre}`, 'exito');
                 } else {
                   setColoniaFiltrada(null);
                   setSectorActivo(sug.dato);
                   setModoBusquedaIndividual(true); 
                   setVerGraficaConsumo(false); 
                   setIdsSectoresVisibles([sug.dato.id]);
+                  mostrarToast(`Sector ${sug.dato.clave} enfocado`, 'exito');
                 }
               }} style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: '700', color: '#f8fafc' }}>
                 {sug.tipo === 'COLONIA' ? '📍' : '⚡'} {sug.nombre}
@@ -330,18 +436,18 @@ const MapaBase = () => {
         )}
       </div>
 
-      {/* BOTONES INFERIORES FIJOS, GRANDES, CON CONTORNO NEGRO Y SOMBRA */}
-      <div style={{ 
-        position: 'absolute', bottom: 50, left: '50%', transform: 'translateX(-50%)', zIndex: 5000, 
-        display: 'flex', gap: '8px', flexWrap: 'nowrap', width: 'auto', 
-        padding: '6px 12px', background: 'transparent', 
-        alignItems: 'center', whiteSpace: 'nowrap'
-      }}>
-        <button onClick={() => setVerAlumbrado(!verAlumbrado)} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.6)', transition: 'all 0.2s' }}>ALUMBRADO</button>
-        <button onClick={() => setVerInmuebles(!verInmuebles)} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.6)', transition: 'all 0.2s' }}>INMUEBLES</button>
-        <button onClick={() => setSoloAlertas(!soloAlertas)} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.6)', transition: 'all 0.2s' }}>ALERTAS</button>
-        <button onClick={() => setVerModo3D(!verModo3D)} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.6)', transition: 'all 0.2s' }}>3D POSTES</button>
-        <button onClick={() => { if(sectorActivo) setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.6)', transition: 'all 0.2s' }}>GRÁFICA</button>
+      {/* BOTÓN DE MENÚ */}
+      <button className={`btn-menu-estilizado ${menuAbierto ? 'activo' : ''}`} onClick={() => setMenuAbierto(!menuAbierto)}>
+        {menuAbierto ? '✕ CERRAR' : '☰ MENÚ'}
+      </button>
+
+      {/* MENÚ DESPLEGABLE VERTICAL */}
+      <div className={`menu-desplegable-container ${menuAbierto ? 'abierto' : ''}`}>
+        <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>ALUMBRADO</button>
+        <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>INMUEBLES</button>
+        <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); mostrarToast(`Filtro Alertas ${!soloAlertas ? 'activado' : 'desactivado'}`); }} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>ALERTAS</button>
+        <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>3D POSTES</button>
+        <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>GRÁFICA</button>
         
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
@@ -352,9 +458,11 @@ const MapaBase = () => {
           setModoBusquedaIndividual(false); 
           setSoloAlertas(false); 
           setVerModo3D(false);
-        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', flexShrink: 0, boxShadow: '0 6px 16px rgba(0,0,0,0.6)' }}>CLEAN</button>
+          setMenuAbierto(false);
+          mostrarToast('Mapa limpiado', 'exito');
+        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>CLEAN</button>
         
-        <select value={anioSeleccionado} onChange={(e) => setAnioSeleccionado(parseInt(e.target.value))} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 14px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', flexShrink: 0, outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
+        <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 14px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
       </div>
 
       {/* TARJETA DE GRÁFICA MOVIBLE (DRAGGABLE) */}
@@ -419,7 +527,7 @@ const MapaBase = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
                 <XAxis dataKey="mes" tick={{fill: '#94a3b8', fontSize: 9}} />
                 <YAxis tickFormatter={formatearNumero} axisLine={false} tick={{fill: '#94a3b8', fontSize: 8}} width={45} />
-                <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} formatter={(v) => [formatearNumero(v), "kWh"]} />
+                <Tooltip content={<CustomTooltipGrafica />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
                 <ReferenceLine y={Number(sectorActivo.consumoIdeal)} stroke="#10b981" strokeDasharray="3 3" label={{ position: 'right', value: 'IDEAL', fill: '#10b981', fontSize: 6 }} />
                 <ReferenceLine y={Number(sectorActivo.consumoAceptable)} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'right', value: 'ACEPTAB', fill: '#f59e0b', fontSize: 6 }} />
                 <ReferenceLine y={Number(sectorActivo.consumoMaximo)} stroke="#ef4444" strokeDasharray="5 5" label={{ position: 'right', value: 'MAX', fill: '#ef4444', fontSize: 6 }} />

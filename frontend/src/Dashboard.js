@@ -21,6 +21,9 @@ const COLORS = {
   luzTooltip: '#38bdf8'       
 };
 
+// --- MEMORIA GLOBAL EN RAM Y CACHÉ DE SESIÓN ---
+let memoriaGlobalDashboard = null;
+
 // --- FORMATEADORES ---
 const formatMK = (v) => {
   if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
@@ -110,6 +113,7 @@ const Dashboard = () => {
   const [busqueda, setBusqueda] = useState("");
   const [listaSugerencias, setListaSugerencias] = useState([]);
   const [exportando, setExportando] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const dashboardRef = useRef(null);
 
@@ -146,10 +150,26 @@ const Dashboard = () => {
     return meses.find(n => val.startsWith(n.toUpperCase())) || null;
   };
 
-  const fetchData = useCallback(async () => {
+  // --- CARGA DE DATOS OPTIMIZADA CON RAM Y SESIÓN ---
+  const fetchData = useCallback(async (forzarRecarga = false) => {
     const cacheKey = `cache_dashboard_${anio}`;
-    sessionStorage.removeItem(cacheKey); // Forzar limpieza para evitar caché vieja
 
+    if (!forzarRecarga && memoriaGlobalDashboard) {
+      setTodosLosSectores(memoriaGlobalDashboard);
+      setLoading(false);
+      return;
+    }
+
+    const datosGuardados = sessionStorage.getItem(cacheKey);
+    if (!forzarRecarga && datosGuardados) {
+      const parsedData = JSON.parse(datosGuardados);
+      memoriaGlobalDashboard = parsedData;
+      setTodosLosSectores(parsedData);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     const query = `query { 
       todosLosSectores { 
         id clave clasificacion consumoIdeal consumoAceptable consumoMaximo nombreColonia
@@ -157,8 +177,9 @@ const Dashboard = () => {
         luminarias { id luminariasPorPoste }
       } 
     }`;
+    
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8085/graphql';
       
       const res = await fetch(API_URL, {
         method: 'POST', 
@@ -168,13 +189,20 @@ const Dashboard = () => {
 
       const result = await res.json();
       const newSectores = result.data?.todosLosSectores || [];
+      
+      memoriaGlobalDashboard = newSectores;
       setTodosLosSectores(newSectores);
-
-      sessionStorage.setItem(cacheKey, JSON.stringify({ todosLosSectores: newSectores }));
-    } catch (err) { console.error("Error al cargar dashboard:", err); }
+      sessionStorage.setItem(cacheKey, JSON.stringify(newSectores));
+    } catch (err) { 
+      console.error("Error al cargar dashboard:", err); 
+    } finally {
+      setLoading(false);
+    }
   }, [anio]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { 
+    fetchData(); 
+  }, [fetchData]);
 
   useEffect(() => {
     if (busqueda.length < 2) { setListaSugerencias([]); return; }
@@ -182,12 +210,14 @@ const Dashboard = () => {
     const listado = [];
     const coloniasVistas = new Set();
 
-    todosLosSectores.forEach(s => {
+    const sectoresArray = Array.isArray(todosLosSectores) ? todosLosSectores : [];
+
+    sectoresArray.forEach(s => {
       const col = s.nombreColonia?.toUpperCase() || "";
       const clave = s.clave?.toUpperCase() || "";
       if (col.toLowerCase().includes(term) && !coloniasVistas.has(col)) {
         coloniasVistas.add(col);
-        listado.push({ tipo: 'Colonia', nombre: col, data: todosLosSectores.filter(sect => sect.nombreColonia === s.nombreColonia) });
+        listado.push({ tipo: 'Colonia', nombre: col, data: sectoresArray.filter(sect => sect.nombreColonia === s.nombreColonia) });
       }
       if (clave.toLowerCase().includes(term)) {
         listado.push({ tipo: 'Sector', nombre: clave, data: [s] });
@@ -201,7 +231,9 @@ const Dashboard = () => {
     const map = {};
     meses.forEach(m => map[m] = { name: m, alum_pago: 0, inm_pago: 0, alum_kwh: 0, inm_kwh: 0, tieneDatos: false });
     
-    todosLosSectores.forEach(s => {
+    const sectoresArray = Array.isArray(todosLosSectores) ? todosLosSectores : [];
+
+    sectoresArray.forEach(s => {
       const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
       (s.recibos || []).forEach(r => {
         if (parseInt(r.anio) === parseInt(anio)) {
@@ -298,12 +330,15 @@ const Dashboard = () => {
 
   const infoEspecifica = useMemo(() => {
     const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    const dataAProcesar = seleccion ? seleccion.data : todosLosSectores;
+    const sectoresArray = Array.isArray(todosLosSectores) ? todosLosSectores : [];
+    const dataAProcesar = seleccion ? seleccion.data : sectoresArray;
     
     let tp = 0, tl = 0;
     const acumulado = meses.reduce((acc, m) => { acc[m] = { valor: 0, importe: 0, tieneDatos: false }; return acc; }, {});
     
-    dataAProcesar.forEach(s => {
+    const seguroProcesar = Array.isArray(dataAProcesar) ? dataAProcesar : [];
+
+    seguroProcesar.forEach(s => {
       tp += (s.luminarias || []).length;
       tl += (s.luminarias || []).reduce((a, c) => a + (c.luminariasPorPoste || 0), 0);
       
@@ -371,6 +406,14 @@ const Dashboard = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => {
+            memoriaGlobalDashboard = null;
+            sessionStorage.removeItem(`cache_dashboard_${anio}`);
+            fetchData(true);
+          }} disabled={loading} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {loading ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+
           <button onClick={exportarPDF} disabled={exportando} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #38bdf8', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
             <span></span> {exportando ? 'Generando PDF...' : 'Descargar PDF'}
           </button>

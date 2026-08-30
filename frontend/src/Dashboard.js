@@ -105,7 +105,6 @@ const Dashboard = () => {
   const [view, setView] = useState("general"); 
   const [anio, setAnio] = useState("2026");
   const [rangoTiempo, setRangoTiempo] = useState("anual"); 
-  const [rawData, setRawData] = useState([]); 
   const [todosLosSectores, setTodosLosSectores] = useState([]);
   const [seleccion, setSeleccion] = useState(null); 
   const [busqueda, setBusqueda] = useState("");
@@ -149,17 +148,9 @@ const Dashboard = () => {
 
   const fetchData = useCallback(async () => {
     const cacheKey = `cache_dashboard_${anio}`;
-    const datosGuardados = sessionStorage.getItem(cacheKey);
+    sessionStorage.removeItem(cacheKey); // Forzar limpieza para evitar caché vieja
 
-    if (datosGuardados) {
-      const parsed = JSON.parse(datosGuardados);
-      setRawData(parsed.rawData || []);
-      setTodosLosSectores(parsed.todosLosSectores || []);
-      return;
-    }
-
-    const query = `query($anio: Int!) { 
-      recibosConsolidados(anio: $anio) { mes consumoKwh importe tipoServicio }
+    const query = `query { 
       todosLosSectores { 
         id clave clasificacion consumoIdeal consumoAceptable consumoMaximo nombreColonia
         recibos { anio mes consumoKwh importe } 
@@ -167,22 +158,19 @@ const Dashboard = () => {
       } 
     }`;
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8085/graphql';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
       
       const res = await fetch(API_URL, {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, variables: { anio: parseInt(anio) } }),
+        body: JSON.stringify({ query }),
       });
 
       const result = await res.json();
-      const newRaw = result.data?.recibosConsolidados || [];
       const newSectores = result.data?.todosLosSectores || [];
-
-      setRawData(newRaw);
       setTodosLosSectores(newSectores);
 
-      sessionStorage.setItem(cacheKey, JSON.stringify({ rawData: newRaw, todosLosSectores: newSectores }));
+      sessionStorage.setItem(cacheKey, JSON.stringify({ todosLosSectores: newSectores }));
     } catch (err) { console.error("Error al cargar dashboard:", err); }
   }, [anio]);
 
@@ -213,33 +201,26 @@ const Dashboard = () => {
     const map = {};
     meses.forEach(m => map[m] = { name: m, alum_pago: 0, inm_pago: 0, alum_kwh: 0, inm_kwh: 0, tieneDatos: false });
     
-    if (parseInt(anio) === 2026) {
-      todosLosSectores.forEach(s => {
-        const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
-        (s.recibos || []).forEach(r => {
-          if (parseInt(r.anio) === 2026) {
-            const mk = getMesKey(r.mes);
-            if (mk && map[mk]) {
-              if (esInmueble) { map[mk].inm_pago += (r.importe || 0); map[mk].inm_kwh += (r.consumoKwh || 0); }
-              else { map[mk].alum_pago += (r.importe || 0); map[mk].alum_kwh += (r.consumoKwh || 0); }
-              if ((r.importe || 0) > 0 || (r.consumoKwh || 0) > 0) map[mk].tieneDatos = true;
+    todosLosSectores.forEach(s => {
+      const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
+      (s.recibos || []).forEach(r => {
+        if (parseInt(r.anio) === parseInt(anio)) {
+          const mk = getMesKey(r.mes);
+          if (mk && map[mk]) {
+            if (esInmueble) { 
+              map[mk].inm_pago += (r.importe || 0); 
+              map[mk].inm_kwh += (r.consumoKwh || 0); 
+            } else { 
+              map[mk].alum_pago += (r.importe || 0); 
+              map[mk].alum_kwh += (r.consumoKwh || 0); 
+            }
+            if ((r.importe || 0) > 0 || (r.consumoKwh || 0) > 0) {
+              map[mk].tieneDatos = true;
             }
           }
-        });
-      });
-    } else {
-      rawData.forEach(r => {
-        const mk = getMesKey(r.mes);
-        if (mk && map[mk]) {
-          if (r.tipoServicio?.toUpperCase().includes('ALUMBRADO')) {
-            map[mk].alum_pago += (r.importe || 0); map[mk].alum_kwh += (r.consumoKwh || 0);
-          } else {
-            map[mk].inm_pago += (r.importe || 0); map[mk].inm_kwh += (r.consumoKwh || 0);
-          }
-          if ((r.importe || 0) > 0 || (r.consumoKwh || 0) > 0) map[mk].tieneDatos = true;
         }
       });
-    }
+    });
 
     let resultado = meses.map(m => ({ 
       ...map[m], 
@@ -247,9 +228,7 @@ const Dashboard = () => {
       total_kwh: map[m].alum_kwh + map[m].inm_kwh 
     }));
 
-    if (parseInt(anio) === 2026) {
-      resultado = resultado.filter(item => item.tieneDatos);
-    }
+    resultado = resultado.filter(item => item.tieneDatos);
 
     if (rangoTiempo === 'sem1') {
       resultado = resultado.slice(0, 6);
@@ -258,11 +237,10 @@ const Dashboard = () => {
     }
 
     return resultado;
-  }, [rawData, todosLosSectores, anio, rangoTiempo]);
+  }, [todosLosSectores, anio, rangoTiempo]);
 
   const kpiVariacion = useMemo(() => {
-    if (processedGeneral.length < 2) return { general: { porcentaje: 0, esAumento: true }, alumbrado: { porcentaje: 0, esAumento: true }, inmuebles: { porcentaje: 0, esAumento: true } };
-    
+    if (processedGeneral.length < 2) return { general: { porcentaje: 0, esAumento: true } };
     const ultimo = processedGeneral[processedGeneral.length - 1];
     const anterior = processedGeneral[processedGeneral.length - 2];
     
@@ -272,10 +250,40 @@ const Dashboard = () => {
       return { porcentaje: Math.abs(diff).toFixed(1), esAumento: diff >= 0 };
     };
 
+    return { general: calcDiff(ultimo.total_pago, anterior.total_pago) };
+  }, [processedGeneral]);
+
+  const kpiVariacionPagos = useMemo(() => {
+    if (processedGeneral.length < 2) return { alumbrado: { porcentaje: 0, esAumento: true }, inmuebles: { porcentaje: 0, esAumento: true } };
+    const ultimo = processedGeneral[processedGeneral.length - 1];
+    const anterior = processedGeneral[processedGeneral.length - 2];
+
+    const calcDiff = (curr, prev) => {
+      if (prev === 0) return { porcentaje: 0, esAumento: true };
+      const diff = ((curr - prev) / prev) * 100;
+      return { porcentaje: Math.abs(diff).toFixed(1), esAumento: diff >= 0 };
+    };
+
     return {
-      general: calcDiff(ultimo.total_pago, anterior.total_pago),
       alumbrado: calcDiff(ultimo.alum_pago, anterior.alum_pago),
       inmuebles: calcDiff(ultimo.inm_pago, anterior.inm_pago)
+    };
+  }, [processedGeneral]);
+
+  const kpiVariacionConsumos = useMemo(() => {
+    if (processedGeneral.length < 2) return { alumbrado: { porcentaje: 0, esAumento: true }, inmuebles: { porcentaje: 0, esAumento: true } };
+    const ultimo = processedGeneral[processedGeneral.length - 1];
+    const anterior = processedGeneral[processedGeneral.length - 2];
+
+    const calcDiff = (curr, prev) => {
+      if (prev === 0) return { porcentaje: 0, esAumento: true };
+      const diff = ((curr - prev) / prev) * 100;
+      return { porcentaje: Math.abs(diff).toFixed(1), esAumento: diff >= 0 };
+    };
+
+    return {
+      alumbrado: calcDiff(ultimo.alum_kwh, anterior.alum_kwh),
+      inmuebles: calcDiff(ultimo.inm_kwh, anterior.inm_kwh)
     };
   }, [processedGeneral]);
 
@@ -312,9 +320,8 @@ const Dashboard = () => {
     });
 
     let listaMeses = meses.map(m => ({ name: m, valor: acumulado[m].valor, importe: acumulado[m].importe, tieneDatos: acumulado[m].tieneDatos }));
-    if (parseInt(anio) === 2026) {
-      listaMeses = listaMeses.filter(item => item.tieneDatos);
-    }
+    listaMeses = listaMeses.filter(item => item.tieneDatos);
+
     if (rangoTiempo === 'sem1') listaMeses = listaMeses.slice(0, 6);
     if (rangoTiempo === 'trim1') listaMeses = listaMeses.slice(0, 3);
 
@@ -365,7 +372,7 @@ const Dashboard = () => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button onClick={exportarPDF} disabled={exportando} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #38bdf8', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
-            <span>📥</span> {exportando ? 'Generando PDF...' : 'Descargar PDF'}
+            <span></span> {exportando ? 'Generando PDF...' : 'Descargar PDF'}
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0b0f19', padding: '3px 10px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
@@ -439,11 +446,13 @@ const Dashboard = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px', paddingBottom: '2px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <p style={{ margin: 0, fontSize: '9px', fontWeight: 'bold', color: COLORS.text }}> CONSUMO (kWh)</p>
-                  <span style={{ fontSize: '8px', background: kpiVariacion.inmuebles.esAumento ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: kpiVariacion.inmuebles.esAumento ? '#ef4444' : '#10b981', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>
-                    Inm: {kpiVariacion.inmuebles.esAumento ? '▲' : '▼'} {kpiVariacion.inmuebles.porcentaje}%
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <span style={{ fontSize: '8px', background: kpiVariacionConsumos.inmuebles.esAumento ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: kpiVariacionConsumos.inmuebles.esAumento ? '#ef4444' : '#10b981', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>
+                    Inm: {kpiVariacionConsumos.inmuebles.esAumento ? '▲' : '▼'} {kpiVariacionConsumos.inmuebles.porcentaje}%
                   </span>
-                  <span style={{ fontSize: '8px', background: kpiVariacion.alumbrado.esAumento ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: kpiVariacion.alumbrado.esAumento ? '#ef4444' : '#10b981', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>
-                    Alum: {kpiVariacion.alumbrado.esAumento ? '▲' : '▼'} {kpiVariacion.alumbrado.porcentaje}%
+                  <span style={{ fontSize: '8px', background: kpiVariacionConsumos.alumbrado.esAumento ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: kpiVariacionConsumos.alumbrado.esAumento ? '#ef4444' : '#10b981', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>
+                    Alum: {kpiVariacionConsumos.alumbrado.esAumento ? '▲' : '▼'} {kpiVariacionConsumos.alumbrado.porcentaje}%
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -488,6 +497,14 @@ const Dashboard = () => {
             <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, padding: '8px', borderRadius: '12px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px', paddingBottom: '2px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
                 <p style={{ margin: 0, fontSize: '9px', fontWeight: 'bold', color: COLORS.text }}> PAGOS (MXN)</p>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <span style={{ fontSize: '8px', background: kpiVariacionPagos.inmuebles.esAumento ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: kpiVariacionPagos.inmuebles.esAumento ? '#ef4444' : '#10b981', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>
+                    Inm: {kpiVariacionPagos.inmuebles.esAumento ? '▲' : '▼'} {kpiVariacionPagos.inmuebles.porcentaje}%
+                  </span>
+                  <span style={{ fontSize: '8px', background: kpiVariacionPagos.alumbrado.esAumento ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)', color: kpiVariacionPagos.alumbrado.esAumento ? '#ef4444' : '#10b981', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>
+                    Alum: {kpiVariacionPagos.alumbrado.esAumento ? '▲' : '▼'} {kpiVariacionPagos.alumbrado.porcentaje}%
+                  </span>
+                </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '6px', color: COLORS.alumbrado, fontWeight: 'bold', display: 'block' }}>ALUMBRADO</span>

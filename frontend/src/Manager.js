@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Database, Save, Building2, Search, CheckCircle2, AlertCircle, 
   Loader2, RefreshCw, Calendar, FileSpreadsheet, Lock, Unlock, 
-  Zap, Layers, ChevronRight, TrendingUp, Trash2
+  Zap, Layers, ChevronRight, TrendingUp, Trash2, UploadCloud, X, CheckCircle, Clock
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 
@@ -15,11 +15,17 @@ let memoriaGlobalSectores = null;
 const Manager = () => {
   const [sectores, setSectores] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos' | 'capturados' | 'pendientes'
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [editarFijos, setEditarFijos] = useState(false);
   const [pestanaActiva, setPestanaActiva] = useState('recibo');
+  
+  // Estado para el modal de Carga Masiva
+  const [modalMasivoAbierto, setModalMasivoAbierto] = useState(false);
+  const [datosMasivosInput, setDatosMasivosInput] = useState('');
+  const [cargandoMasivo, setCargandoMasivo] = useState(false);
 
   const [sectorForm, setSectorForm] = useState({
     id: '',
@@ -64,23 +70,36 @@ const Manager = () => {
       recibos: sec.recibos || []
     });
 
-    if (sec.recibos && sec.recibos.length > 0) {
+    const reciboMesActual = (sec.recibos || []).find(
+      r => r.mes.toLowerCase() === reciboForm.mes.toLowerCase() && parseInt(r.anio) === parseInt(reciboForm.anio)
+    );
+
+    if (reciboMesActual) {
+      setReciboForm({
+        mes: reciboForm.mes,
+        anio: reciboForm.anio,
+        consumoKwh: parseFloat(reciboMesActual.consumoKwh) || 0,
+        importe: parseFloat(reciboMesActual.importe) || 0,
+        lecturaAnterior: parseFloat(reciboMesActual.lecturaAnterior) || 0,
+        lecturaActual: parseFloat(reciboMesActual.lecturaActual) || 0,
+        notasObservaciones: reciboMesActual.notasObservaciones || ''
+      });
+    } else if (sec.recibos && sec.recibos.length > 0) {
       const ultimo = sec.recibos[sec.recibos.length - 1];
       setReciboForm({
-        mes: ultimo.mes || 'Jul',
-        anio: parseInt(ultimo.anio) || 2026,
-        consumoKwh: parseFloat(ultimo.consumoKwh) || 0,
-        importe: parseFloat(ultimo.importe) || 0,
-        lecturaAnterior: parseFloat(ultimo.lecturaAnterior) || 0,
-        lecturaActual: parseFloat(ultimo.lecturaActual) || 0,
-        notasObservaciones: ultimo.notasObservaciones || ''
+        mes: reciboForm.mes,
+        anio: reciboForm.anio,
+        consumoKwh: 0,
+        importe: 0,
+        lecturaAnterior: parseFloat(ultimo.lecturaActual) || parseFloat(ultimo.lecturaAnterior) || 0,
+        lecturaActual: 0,
+        notasObservaciones: ''
       });
     } else {
-      setReciboForm({ mes: 'Jul', anio: 2026, consumoKwh: 0, importe: 0, lecturaAnterior: 0, lecturaActual: 0, notasObservaciones: '' });
+      setReciboForm({ mes: reciboForm.mes, anio: reciboForm.anio, consumoKwh: 0, importe: 0, lecturaAnterior: 0, lecturaActual: 0, notasObservaciones: '' });
     }
-  }, []);
+  }, [reciboForm.mes, reciboForm.anio]);
 
-  // Carga de sectores optimizada con RAM global, sessionStorage y candado anti-duplicados
   const cargarSectores = useCallback((forzarRecarga = false) => {
     const cacheKey = 'cache_manager_sectores';
     const flagKey = 'cargando_manager_en_proceso';
@@ -194,6 +213,27 @@ const Manager = () => {
     }
   };
 
+  const cambiarAnio = (nuevoAnio) => {
+    const anioInt = parseInt(nuevoAnio);
+    const reciboExistente = (sectorForm.recibos || []).find(
+      r => r.mes.toLowerCase() === reciboForm.mes.toLowerCase() && parseInt(r.anio) === anioInt
+    );
+
+    if (reciboExistente) {
+      setReciboForm({
+        mes: reciboForm.mes,
+        anio: anioInt,
+        lecturaAnterior: parseFloat(reciboExistente.lecturaAnterior) || 0,
+        lecturaActual: parseFloat(reciboExistente.lecturaActual) || 0,
+        consumoKwh: parseFloat(reciboExistente.consumoKwh) || 0,
+        importe: parseFloat(reciboExistente.importe) || 0,
+        notasObservaciones: reciboExistente.notasObservaciones || ''
+      });
+    } else {
+      setReciboForm(prev => ({ ...prev, anio: anioInt, lecturaActual: 0, consumoKwh: 0, importe: 0 }));
+    }
+  };
+
   const handleLecturaActualChange = (val) => {
     const nuevaLectura = parseFloat(val) || 0;
     const diferencia = nuevaLectura > reciboForm.lecturaAnterior ? nuevaLectura - reciboForm.lecturaAnterior : 0;
@@ -259,6 +299,80 @@ const Manager = () => {
       });
   };
 
+  const ejecutarCargaMasiva = async () => {
+    if (!datosMasivosInput.trim()) {
+      setMensaje({ tipo: 'error', texto: 'Por favor ingrese o pegue los datos para la carga masiva.' });
+      return;
+    }
+
+    setCargandoMasivo(true);
+    try {
+      const lineas = datosMasivosInput.split('\n');
+      let exitosos = 0;
+
+      for (let linea of lineas) {
+        if (!linea.trim()) continue;
+        const partes = linea.split(/,|\t/);
+        if (partes.length >= 5) {
+          const claveSec = partes[0].trim();
+          const mesSec = partes[1].trim();
+          const anioSec = parseInt(partes[2].trim()) || 2026;
+          const lecAnt = parseFloat(partes[3].trim()) || 0;
+          const lecAct = parseFloat(partes[4].trim()) || 0;
+          const kwh = parseFloat(partes[5]?.trim()) || (lecAct > lecAnt ? lecAct - lecAnt : 0);
+          const imp = parseFloat(partes[6]?.trim()) || 0;
+          const notas = partes[7]?.trim() || '';
+
+          const sectorEncontrado = sectores.find(s => s.clave.toLowerCase() === claveSec.toLowerCase());
+          if (sectorEncontrado) {
+            const mutation = `
+              mutation RegistrarRecibo($input: ReciboInput!) {
+                registrarRecibo(input: $input) {
+                  id
+                }
+              }
+            `;
+            const variables = {
+              input: {
+                sectorId: parseInt(sectorEncontrado.id),
+                mes: mesSec,
+                anio: anioSec,
+                lecturaAnterior: lecAnt,
+                lecturaActual: lecAct,
+                consumoKwh: kwh,
+                importeRecibo: imp,
+                notasObservaciones: notas
+              }
+            };
+
+            const respuesta = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: mutation, variables })
+            });
+            const resultadoJson = await respuesta.json();
+            if (!resultadoJson.errors) {
+              exitosos++;
+            }
+          }
+        }
+      }
+
+      setCargandoMasivo(false);
+      setModalMasivoAbierto(false);
+      setDatosMasivosInput('');
+      setMensaje({ tipo: 'exito', texto: `Carga masiva completada. Se procesaron ${exitosos} registros correctamente.` });
+      
+      memoriaGlobalSectores = null;
+      sessionStorage.removeItem('cache_manager_sectores');
+      cargarSectores(true);
+      setTimeout(() => setMensaje(null), 4000);
+    } catch (error) {
+      setCargandoMasivo(false);
+      setMensaje({ tipo: 'error', texto: 'Ocurrió un error durante el proceso de carga masiva.' });
+    }
+  };
+
   const eliminarRegistroBackend = () => {
     if (!sectorForm.id) {
       setMensaje({ tipo: 'error', texto: 'Seleccione un sector válido.' });
@@ -312,12 +426,21 @@ const Manager = () => {
       });
   };
 
+  // Filtrado avanzado con estado (Todos, Capturados, Pendientes) para el periodo activo
   const sectoresFiltrados = useMemo(() => {
-    return sectores.filter(s => 
-      s.clave?.toLowerCase().includes(busqueda.toLowerCase()) || 
-      s.nombreColonia?.toLowerCase().includes(busqueda.toLowerCase())
-    );
-  }, [sectores, busqueda]);
+    return sectores.filter(s => {
+      const coincideTexto = s.clave?.toLowerCase().includes(busqueda.toLowerCase()) || 
+                            s.nombreColonia?.toLowerCase().includes(busqueda.toLowerCase());
+      
+      const tieneCaptura = (s.recibos || []).some(
+        r => r.mes.toLowerCase() === reciboForm.mes.toLowerCase() && parseInt(r.anio) === parseInt(reciboForm.anio) && (parseFloat(r.lecturaActual) > 0 || parseFloat(r.consumoKwh) > 0)
+      );
+
+      if (filtroEstado === 'capturados') return coincideTexto && tieneCaptura;
+      if (filtroEstado === 'pendientes') return coincideTexto && !tieneCaptura;
+      return coincideTexto;
+    });
+  }, [sectores, busqueda, filtroEstado, reciboForm.mes, reciboForm.anio]);
 
   const estadoConsumo = useMemo(() => {
     const kwhActual = parseFloat(reciboForm.consumoKwh) || 0;
@@ -385,7 +508,7 @@ const Manager = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#070b14] p-3 md:p-4 font-sans text-slate-100 flex flex-col overflow-hidden">
+    <div className="h-screen w-screen bg-[#070b14] p-3 md:p-4 font-sans text-slate-100 flex flex-col overflow-hidden relative">
       <div className="max-w-[1600px] w-full mx-auto flex flex-col h-full gap-2.5">
         
         {/* HEADER */}
@@ -406,6 +529,13 @@ const Manager = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setModalMasivoAbierto(true)} 
+              className="bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all"
+            >
+              <UploadCloud size={13} />
+              <span>Carga Masiva</span>
+            </button>
             <button 
               onClick={() => {
                 memoriaGlobalSectores = null;
@@ -450,7 +580,7 @@ const Manager = () => {
         {/* DASHBOARD PRINCIPAL */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0 overflow-hidden">
           
-          {/* SECTORES */}
+          {/* SECTORES CON FILTROS DE ESTADO */}
           <div className="lg:col-span-4 bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl shadow-lg flex flex-col h-full min-h-0">
             <div className="flex justify-between items-center mb-2 px-1">
               <span className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -469,12 +599,44 @@ const Manager = () => {
               />
             </div>
 
+            {/* BOTONES DE FILTRO RÁPIDO (TODOS / CAPTURADOS / PENDIENTES) */}
+            <div className="grid grid-cols-3 gap-1 mb-2.5 shrink-0">
+              <button 
+                onClick={() => setFiltroEstado('todos')}
+                className={`py-1 px-2 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                  filtroEstado === 'todos' ? 'bg-slate-700 text-white shadow' : 'bg-slate-950/60 text-slate-400 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                Todos
+              </button>
+              <button 
+                onClick={() => setFiltroEstado('capturados')}
+                className={`py-1 px-2 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 ${
+                  filtroEstado === 'capturados' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-950/60 text-emerald-400/80 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <CheckCircle size={10} /> Capturados
+              </button>
+              <button 
+                onClick={() => setFiltroEstado('pendientes')}
+                className={`py-1 px-2 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 ${
+                  filtroEstado === 'pendientes' ? 'bg-amber-600 text-white shadow' : 'bg-slate-950/60 text-amber-400/80 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <Clock size={10} /> Pendientes
+              </button>
+            </div>
+
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
               {sectoresFiltrados.length === 0 ? (
-                <div className="text-center py-8 text-slate-600 text-xs">Sin registros.</div>
+                <div className="text-center py-8 text-slate-600 text-xs">Sin registros que coincidan.</div>
               ) : (
                 sectoresFiltrados.map(sec => {
                   const esSeleccionado = sectorForm.id === sec.id;
+                  const estaCapturado = (sec.recibos || []).some(
+                    r => r.mes.toLowerCase() === reciboForm.mes.toLowerCase() && parseInt(r.anio) === parseInt(reciboForm.anio) && (parseFloat(r.lecturaActual) > 0 || parseFloat(r.consumoKwh) > 0)
+                  );
+
                   return (
                     <button 
                       key={sec.id} 
@@ -482,16 +644,22 @@ const Manager = () => {
                       className={`w-full p-2 rounded-lg text-left border transition-all duration-150 flex justify-between items-center ${
                         esSeleccionado 
                           ? 'bg-gradient-to-r from-rose-950/40 to-slate-900 border-rose-500/60 shadow-md' 
-                          : 'bg-slate-950/40 border-slate-800/60 hover:bg-slate-800/40'
+                          : estaCapturado
+                            ? 'bg-emerald-950/20 border-emerald-500/30 hover:bg-emerald-900/20'
+                            : 'bg-slate-950/40 border-slate-800/60 hover:bg-slate-800/40'
                       }`}
                     >
-                      <div className="space-y-0.5 truncate">
-                        <p className={`text-xs font-black uppercase tracking-wide truncate ${esSeleccionado ? 'text-rose-400' : 'text-slate-200'}`}>
-                          {sec.clave}
-                        </p>
-                        <p className="text-[10px] font-medium text-slate-400 truncate">
-                          {sec.nombreColonia || 'Sin colonia'}
-                        </p>
+                      <div className="space-y-0.5 truncate flex items-center gap-2">
+                        {/* Indicador visual de color: Verde si está capturado, Gris si está pendiente */}
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${estaCapturado ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'bg-slate-600'}`}></span>
+                        <div className="truncate">
+                          <p className={`text-xs font-black uppercase tracking-wide truncate ${esSeleccionado ? 'text-rose-400' : 'text-slate-200'}`}>
+                            {sec.clave}
+                          </p>
+                          <p className="text-[10px] font-medium text-slate-400 truncate">
+                            {sec.nombreColonia || 'Sin colonia'}
+                          </p>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -577,7 +745,7 @@ const Manager = () => {
               {pestanaActiva === 'recibo' && (
                 <div className="flex-1 flex flex-col min-h-0 gap-2.5">
                   
-                  {/* SELECTOR DE MES */}
+                  {/* SELECTOR DE MES Y AÑO */}
                   <div className="flex justify-between items-center bg-slate-950/60 px-3 py-1.5 rounded-lg border border-slate-800 shrink-0">
                     <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                       <Calendar size={13} className="text-emerald-400" /> Periodo a Facturar:
@@ -592,7 +760,7 @@ const Manager = () => {
                       </select>
                       <select 
                         value={reciboForm.anio} 
-                        onChange={e => setReciboForm({...reciboForm, anio: parseInt(e.target.value)})} 
+                        onChange={e => cambiarAnio(e.target.value)} 
                         className="bg-slate-900 text-slate-200 px-2 py-0.5 rounded text-xs font-bold outline-none border border-slate-700 cursor-pointer"
                       >
                         {[2024, 2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
@@ -794,6 +962,60 @@ const Manager = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL DE CARGA MASIVA */}
+      {modalMasivoAbierto && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0b101d] border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center bg-slate-900 px-4 py-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <UploadCloud size={18} className="text-indigo-400" />
+                <h3 className="text-sm font-black uppercase text-white tracking-wider">Carga Masiva de Recibos</h3>
+              </div>
+              <button 
+                onClick={() => setModalMasivoAbierto(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Pegue aquí los datos tabulares (copiados de Excel o formato CSV separado por comas/tabulaciones). Cada fila debe respetar el siguiente orden de columnas:
+              </p>
+              <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono text-[10px] text-indigo-300">
+                ClaveSector, Mes, Anio, LecturaAnterior, LecturaActual, ConsumoKwh, Importe, Notas
+              </div>
+              <textarea 
+                rows="8" 
+                placeholder="Ejemplo:&#10;810101002472, Jun, 2026, 69715, 77990, 8275, 40642, Lectura estimada"
+                value={datosMasivosInput}
+                onChange={(e) => setDatosMasivosInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500/50 p-3 rounded-xl text-xs font-mono text-slate-200 outline-none placeholder:text-slate-700 resize-none custom-scrollbar"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 bg-slate-900 px-4 py-3 border-t border-slate-800">
+              <button 
+                onClick={() => setModalMasivoAbierto(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={ejecutarCargaMasiva}
+                disabled={cargandoMasivo}
+                className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-950/50 transition-all disabled:opacity-50"
+              >
+                {cargandoMasivo ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+                <span>Procesar Carga Masiva</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

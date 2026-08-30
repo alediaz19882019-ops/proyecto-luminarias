@@ -179,7 +179,7 @@ const Dashboard = () => {
     }`;
     
     try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8085/graphql';
+      const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
       
       const res = await fetch(API_URL, {
         method: 'POST', 

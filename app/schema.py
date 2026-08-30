@@ -82,6 +82,23 @@ class SectorType:
     recibos: List[Recibo]
     luminarias: List[LuminariaType]
 
+@strawberry.type
+class SectorMapaType:
+    id: strawberry.ID
+    clave: str
+    clasificacion: Optional[str]
+    nombreColonia: str
+    latitud: float
+    longitud: float
+    consumoMaximo: float
+    ultimoConsumo: float
+
+@strawberry.type
+class AuthResponse:
+    success: bool
+    rol: Optional[str] = ""
+    usuario: Optional[str] = ""
+
 # --- 2. INPUTS PARA MUTACIONES ---
 
 @strawberry.input
@@ -151,15 +168,17 @@ class SectorInput:
 
 @strawberry.type
 class Query:
-    # --- VALIDACIÓN DE CREDENCIALES CONTRA MYSQL (TEXTO PLANO) ---
     @strawberry.field
-    def validar_usuario(self, usuario: str, password: str) -> bool:
+    def validar_usuario(self, usuario: str, password: str) -> AuthResponse:
         db = SessionLocal()
         try:
             user_db = db.query(models.Usuario).filter(models.Usuario.usuario == usuario).first()
             if not user_db:
-                return False
-            return user_db.password == password
+                return AuthResponse(success=False, rol="", usuario="")
+            
+            if user_db.password == password:
+                return AuthResponse(success=True, rol=user_db.rol, usuario=user_db.usuario)
+            return AuthResponse(success=False, rol="", usuario="")
         finally:
             db.close()
             
@@ -186,7 +205,111 @@ class Query:
             db.close()
 
     @strawberry.field
-    def todosLosSectores(self) -> List[SectorType]:
+    def sectoresMapa(self) -> List[SectorMapaType]:
+        db = SessionLocal()
+        try:
+            sectores = db.query(models.Sector).options(
+                joinedload(models.Sector.colonia),
+                selectinload(models.Sector.recibos_detallados)
+            ).execution_options(populate_existing=True).all()
+            
+            resultado = []
+            for s in sectores:
+                ultimo_recibo = s.recibos_detallados[-1] if s.recibos_detallados else None
+                consumo_val = float(ultimo_recibo.consumo_kwh) if ultimo_recibo else 0.0
+
+                resultado.append(SectorMapaType(
+                    id=strawberry.ID(str(s.id)),
+                    clave=s.clave,
+                    clasificacion=s.clasificacion or "ALUMBRADO",
+                    nombreColonia=s.colonia.nombre if s.colonia else "SIN COLONIA",
+                    latitud=float(s.latitud or 0.0),
+                    longitud=float(s.longitud or 0.0),
+                    consumoMaximo=float(s.consumo_maximo or 0.0),
+                    ultimoConsumo=consumo_val
+                ))
+            return resultado
+        finally:
+            db.close()
+
+    @strawberry.field
+    def sectorPorId(self, id: int) -> Optional[SectorType]:
+        db = SessionLocal()
+        try:
+            s = db.query(models.Sector).filter(models.Sector.id == id).options(
+                joinedload(models.Sector.colonia),
+                selectinload(models.Sector.recibos_detallados),
+                selectinload(models.Sector.recibos_mensuales),
+                selectinload(models.Sector.luminarias)
+            ).first()
+            if not s:
+                return None
+            
+            meses_orden = {
+                "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
+                "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+            }
+
+            lista_recibos_unificada = []
+            for r in s.recibos_detallados:
+                lista_recibos_unificada.append(Recibo(
+                    id=strawberry.ID(f"det_{r.id}"),
+                    mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                    anio=r.anio,
+                    consumoKwh=float(r.consumo_kwh or 0.0),
+                    lecturaAnterior=float(r.lectura_anterior or 0.0),
+                    lecturaActual=float(r.lectura_actual or 0.0),
+                    importe=float(r.importe_recibo or 0.0),
+                    tipoServicio=r.tipo_servicio or "ALUMBRADO",
+                    notasObservaciones=r.notas_observaciones
+                ))
+            for r in s.recibos_mensuales:
+                lista_recibos_unificada.append(Recibo(
+                    id=strawberry.ID(f"men_{r.id}"),
+                    mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                    anio=r.anio,
+                    consumoKwh=float(r.consumo_kwh or 0.0),
+                    lecturaAnterior=float(getattr(r, 'lectura_anterior', 0.0) or 0.0),
+                    lecturaActual=float(getattr(r, 'lectura_actual', 0.0) or 0.0),
+                    importe=float(r.importe_recibo or 0.0),
+                    tipoServicio=r.tipo_servicio or "ALUMBRADO",
+                    notasObservaciones=r.notas_observaciones or "Dato Histórico"
+                ))
+
+            lista_recibos_unificada.sort(key=lambda x: (x.anio, meses_orden.get(x.mes, 0)), reverse=True)
+
+            return SectorType(
+                id=strawberry.ID(str(s.id)),
+                clave=s.clave,
+                clasificacion=s.clasificacion or "ALUMBRADO",
+                nombreColonia=s.colonia.nombre if s.colonia else "SIN COLONIA",
+                latitud=float(s.latitud or 0.0),
+                longitud=float(s.longitud or 0.0),
+                consumoIdeal=float(s.consumo_ideal or 0.0),
+                consumoAceptable=float(s.consumo_aceptable or 0.0),
+                consumoMaximo=float(s.consumo_maximo or 0.0),
+                medidor=s.medidor,
+                cuenta=s.cuenta,
+                carga=float(s.carga) if s.carga else 0.0,
+                cpd=float(s.cpd) if s.cpd else 0.0,
+                tarifa=s.tarifa or "5A",
+                recibos=lista_recibos_unificada,
+                luminarias=[LuminariaType(
+                    id=strawberry.ID(str(l.id)), 
+                    latitud=float(l.latitud),
+                    longitud=float(l.longitud),
+                    luminariasPorPoste=int(l.luminarias_por_poste or 1),
+                    cantidadPostes=int(l.cantidad_postes or 1),
+                    tipoLampara=l.tipo_lampara,
+                    capacidad=str(l.capacidad) if l.capacidad else "70",
+                    descripcion=l.descripcion
+                ) for l in s.luminarias]
+            )
+        finally:
+            db.close()
+
+    @strawberry.field
+    def todosLosSectores(self, mes: Optional[str] = None, anio: Optional[int] = None) -> List[SectorType]:
         db = SessionLocal()
         try:
             sectores = db.query(models.Sector).options(
@@ -228,6 +351,17 @@ class Query:
                         tipoServicio=r.tipo_servicio or "ALUMBRADO",
                         notasObservaciones=r.notas_observaciones or "Dato Histórico"
                     ))
+
+                # --- FILTRAR POR MES Y AÑO SI SE PROPORCIONAN ---
+                if mes:
+                    mes_limpio = mes.strip().capitalize()
+                    lista_recibos_unificada = [r for r in lista_recibos_unificada if r.mes == mes_limpio]
+                if anio:
+                    lista_recibos_unificada = [r for r in lista_recibos_unificada if r.anio == anio]
+
+                # --- EXCLUIR SECTORES SIN RECIBOS PARA EL PERIODO FILTRADO ---
+                if (mes or anio) and not lista_recibos_unificada:
+                    continue
 
                 lista_recibos_unificada.sort(key=lambda x: (x.anio, meses_orden.get(x.mes, 0)), reverse=True)
 

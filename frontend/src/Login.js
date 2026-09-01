@@ -14,11 +14,11 @@ const Login = ({ onLoginSuccess, onRegisterClick, onGoHome }) => {
     setError(false);
 
     try {
-      // Petición a la API de GraphQL solicitando los subcampos requeridos por el backend
+      // Petición a la API de GraphQL utilizando el campo 'success' existente en AuthResponse
       const query = `
         query {
           validarUsuario(usuario: "${usuario}", password: "${password}") {
-            token
+            success
           }
         }
       `;
@@ -32,8 +32,8 @@ const Login = ({ onLoginSuccess, onRegisterClick, onGoHome }) => {
       const result = await response.json();
       setCargando(false);
 
-      // Valida si el objeto de respuesta contiene el token de acceso
-      if (result.data?.validarUsuario?.token) {
+      // Valida si el backend responde con success true
+      if (result.data?.validarUsuario?.success) {
         onLoginSuccess();
       } else {
         setError(true);

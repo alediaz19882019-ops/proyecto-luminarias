@@ -5,18 +5,16 @@ import {
   Zap, Layers, ChevronRight, TrendingUp, Trash2, UploadCloud, X, CheckCircle, Clock
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
+import { useApp } from './AppContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
 const ORDEN_MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-// Memoria global en RAM: Si ya se descargaron una vez en la sesión, no se vuelven a pedir nunca
-let memoriaGlobalSectores = null;
-
 const Manager = () => {
-  const [sectores, setSectores] = useState([]);
+  const { todosLosSectores: sectores, cargarSectoresGlobal, loadingGlobal } = useApp();
+
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos' | 'capturados' | 'pendientes'
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [editarFijos, setEditarFijos] = useState(false);
@@ -100,89 +98,15 @@ const Manager = () => {
     }
   }, [reciboForm.mes, reciboForm.anio]);
 
-  const cargarSectores = useCallback((forzarRecarga = false) => {
-    const cacheKey = 'cache_manager_sectores';
-    const flagKey = 'cargando_manager_en_proceso';
-
-    if (!forzarRecarga && memoriaGlobalSectores) {
-      setSectores(memoriaGlobalSectores);
-      if (memoriaGlobalSectores.length > 0 && !sectorForm.id) {
-        seleccionarSector(memoriaGlobalSectores[0]);
-      }
-      return;
-    }
-
-    const datosGuardados = sessionStorage.getItem(cacheKey);
-    if (!forzarRecarga && datosGuardados) {
-      const parsedData = JSON.parse(datosGuardados);
-      memoriaGlobalSectores = parsedData;
-      setSectores(parsedData);
-      if (parsedData.length > 0 && !sectorForm.id) {
-        seleccionarSector(parsedData[0]);
-      }
-      return;
-    }
-
-    if (sessionStorage.getItem(flagKey) === 'true' && !forzarRecarga) return;
-    sessionStorage.setItem(flagKey, 'true');
-
-    setLoading(true);
-    const query = `{
-      todosLosSectores {
-        id
-        clave
-        clasificacion
-        consumoIdeal
-        consumoAceptable
-        consumoMaximo
-        nombreColonia
-        medidor
-        cuenta
-        carga
-        cpd
-        tarifa
-        recibos {
-          id
-          anio
-          mes
-          consumoKwh
-          importe
-          lecturaAnterior
-          lecturaActual
-          notasObservaciones
-        }
-      }
-    }`;
-
-    fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
-    })
-      .then(res => res.json())
-      .then(data => {
-        sessionStorage.removeItem(flagKey);
-        if (data.data?.todosLosSectores) {
-          const nuevosSectores = data.data.todosLosSectores;
-          memoriaGlobalSectores = nuevosSectores;
-          setSectores(nuevosSectores);
-          sessionStorage.setItem(cacheKey, JSON.stringify(nuevosSectores));
-          if (nuevosSectores.length > 0 && !sectorForm.id) {
-            seleccionarSector(nuevosSectores[0]);
-          }
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        sessionStorage.removeItem(flagKey);
-        console.error("Error de conexión:", err);
-        setLoading(false);
-      });
-  }, [sectorForm.id, seleccionarSector]);
+  useEffect(() => {
+    cargarSectoresGlobal();
+  }, [cargarSectoresGlobal]);
 
   useEffect(() => {
-    cargarSectores();
-  }, [cargarSectores]);
+    if (sectores.length > 0 && !sectorForm.id) {
+      seleccionarSector(sectores[0]);
+    }
+  }, [sectores, sectorForm.id, seleccionarSector]);
 
   const cambiarMes = (nuevoMes) => {
     const reciboExistente = (sectorForm.recibos || []).find(
@@ -287,9 +211,7 @@ const Manager = () => {
           setMensaje({ tipo: 'error', texto: `Error: ${detalleError}` });
         } else {
           setMensaje({ tipo: 'exito', texto: `Captura de ${reciboForm.mes} ${reciboForm.anio} guardada exitosamente.` });
-          memoriaGlobalSectores = null; 
-          sessionStorage.removeItem('cache_manager_sectores');
-          cargarSectores(true); 
+          cargarSectoresGlobal(true); 
           setTimeout(() => setMensaje(null), 3000);
         }
       })
@@ -363,9 +285,7 @@ const Manager = () => {
       setDatosMasivosInput('');
       setMensaje({ tipo: 'exito', texto: `Carga masiva completada. Se procesaron ${exitosos} registros correctamente.` });
       
-      memoriaGlobalSectores = null;
-      sessionStorage.removeItem('cache_manager_sectores');
-      cargarSectores(true);
+      cargarSectoresGlobal(true);
       setTimeout(() => setMensaje(null), 4000);
     } catch (error) {
       setCargandoMasivo(false);
@@ -414,9 +334,7 @@ const Manager = () => {
             importe: 0,
             notasObservaciones: ''
           }));
-          memoriaGlobalSectores = null;
-          sessionStorage.removeItem('cache_manager_sectores');
-          cargarSectores(true);
+          cargarSectoresGlobal(true);
           setTimeout(() => setMensaje(null), 3000);
         }
       })
@@ -426,7 +344,6 @@ const Manager = () => {
       });
   };
 
-  // Filtrado avanzado con estado (Todos, Capturados, Pendientes) para el periodo activo
   const sectoresFiltrados = useMemo(() => {
     return sectores.filter(s => {
       const coincideTexto = s.clave?.toLowerCase().includes(busqueda.toLowerCase()) || 
@@ -537,14 +454,10 @@ const Manager = () => {
               <span>Carga Masiva</span>
             </button>
             <button 
-              onClick={() => {
-                memoriaGlobalSectores = null;
-                sessionStorage.removeItem('cache_manager_sectores');
-                cargarSectores(true);
-              }} 
+              onClick={() => cargarSectoresGlobal(true)} 
               className="bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
             >
-              <RefreshCw size={13} className={loading ? "animate-spin text-rose-400" : ""} /> 
+              <RefreshCw size={13} className={loadingGlobal ? "animate-spin text-rose-400" : ""} /> 
               <span>Sincronizar</span>
             </button>
             <button 
@@ -650,7 +563,6 @@ const Manager = () => {
                       }`}
                     >
                       <div className="space-y-0.5 truncate flex items-center gap-2">
-                        {/* Indicador visual de color: Verde si está capturado, Gris si está pendiente */}
                         <span className={`w-2 h-2 rounded-full shrink-0 ${estaCapturado ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'bg-slate-600'}`}></span>
                         <div className="truncate">
                           <p className={`text-xs font-black uppercase tracking-wide truncate ${esSeleccionado ? 'text-rose-400' : 'text-slate-200'}`}>

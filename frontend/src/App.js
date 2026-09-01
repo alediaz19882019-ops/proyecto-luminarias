@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { AppProvider } from './AppContext'; // <--- Importamos el Proveedor Global
 import MapaBase from './MapaBase';
 import Manager from './Manager';
-import Censo from './Censo'; // <--- Importamos la página de Censo
+import Censo from './Censo'; 
 import Login from './Login';
 import Home from './Home';
 import Dashboard from './Dashboard';
@@ -13,7 +14,7 @@ const COLORS = {
   bg: '#fff1f2' 
 };
 
-const App = () => {
+const MainApp = () => {
   const [tab, setTab] = useState('home'); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showRegisterMsg, setShowRegisterMsg] = useState(false);
@@ -21,7 +22,7 @@ const App = () => {
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);   
     setShowRegisterMsg(false);
-    setTab('mapaBase');   // <--- Redirige directo al mapaBase al iniciar sesión
+    setTab('mapaBase');   
   };
 
   const handleLogout = () => {
@@ -198,6 +199,15 @@ const App = () => {
         )}
       </div>
     </div>
+  );
+};
+
+// Envolvemos la aplicación principal con el AppProvider para centralizar la caché de datos
+const App = () => {
+  return (
+    <AppProvider>
+      <MainApp />
+    </AppProvider>
   );
 };
 

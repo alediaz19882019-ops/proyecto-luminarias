@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, CircleMarker, Pane, Tooltip as MapTooltip } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
+import { useApp } from './AppContext'; //
 
 const IconoInfo = ({ color }) => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -131,8 +130,7 @@ const crearIconoPoste3D = (luminariasPorPoste = 1) => {
 };
 
 const MapaBase = () => {
-  const [todosLosSectores, setTodosLosSectores] = useState([]);
-  const [cargando, setCargando] = useState(true);
+  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal } = useApp(); //
   const [notificacion, setNotificacion] = useState(null);
 
   const mostrarToast = (mensaje, tipo = 'info') => {
@@ -147,53 +145,20 @@ const MapaBase = () => {
   const [verAlumbrado, setVerAlumbrado] = useState(true);
   const [verInmuebles, setVerInmuebles] = useState(true);
   const [soloAlertas, setSoloAlertas] = useState(false);
+  const [soloBajasCfe, setSoloBajasCfe] = useState(false);
   const [verModo3D, setVerModo3D] = useState(false); 
   const [anioSeleccionado, setAnioSeleccionado] = useState(2026);
   const [verGraficaConsumo, setVerGraficaConsumo] = useState(false);
   const [mostrarCFE, setMostrarCFE] = useState(false);
   const [mostrarObservacion, setMostrarObservacion] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
-  
-  const [posGrafica, setPosGrafica] = useState({ x: window.innerWidth / 2 - 210, y: window.innerHeight / 2 - 220 });
-  const arrastrandoGrafica = useRef(false);
-  const offsetGrafica = useRef({ x: 0, y: 0 });
 
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
 
   useEffect(() => {
-    setCargando(true);
-    const datosGuardados = sessionStorage.getItem('cache_todos_sectores');
-    if (datosGuardados) {
-      setTodosLosSectores(JSON.parse(datosGuardados));
-      setCargando(false);
-      return;
-    }
-
-    const query = `{ 
-      todosLosSectores { 
-        id clave clasificacion latitud longitud consumoIdeal consumoAceptable consumoMaximo nombreColonia medidor cuenta carga cpd tarifa 
-        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones } 
-        luminarias { id latitud longitud capacidad cantidadPostes luminariasPorPoste } 
-      } 
-    }`;
-    fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) })
-    .then(r => r.json())
-    .then(res => { 
-      if (res.data?.todosLosSectores) {
-        setTodosLosSectores(res.data.todosLosSectores);
-        sessionStorage.setItem('cache_todos_sectores', JSON.stringify(res.data.todosLosSectores));
-        mostrarToast('Datos sincronizados correctamente', 'exito');
-      } else {
-        mostrarToast('Error al obtener datos del servidor', 'error');
-      }
-      setCargando(false);
-    })
-    .catch(() => {
-      mostrarToast('Falla de conexión con el servidor GraphQL', 'error');
-      setCargando(false);
-    });
-  }, []);
+    cargarSectoresGlobal();
+  }, [cargarSectoresGlobal]);
 
   const sugerenciasFiltradas = useMemo(() => {
     if (busqueda.length < 2 || !mostrarSugerencias) return [];
@@ -206,6 +171,8 @@ const MapaBase = () => {
   const sectoresMostrados = useMemo(() => {
     return todosLosSectores.filter(s => {
       const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
+      const noTieneLuminarias = !s.luminarias || s.luminarias.length === 0;
+
       const recibos = s.recibos || [];
       const ultimoRecibo = [...recibos].sort((a, b) => {
         const anioDiff = parseInt(b.anio) - parseInt(a.anio);
@@ -215,6 +182,10 @@ const MapaBase = () => {
       const limiteMax = parseFloat(s.consumoMaximo) || 0;
       const esAlerta = consumoUltimo > limiteMax && limiteMax > 0;
 
+      if (soloBajasCfe) {
+        return !esInmueble && noTieneLuminarias;
+      }
+
       if (esInmueble && !verInmuebles) return false;
       if (!esInmueble && !verAlumbrado) return false;
       if (modoBusquedaIndividual && sectorActivo) return s.id === sectorActivo.id;
@@ -223,7 +194,7 @@ const MapaBase = () => {
 
       return true;
     });
-  }, [todosLosSectores, verAlumbrado, verInmuebles, coloniaFiltrada, sectorActivo, modoBusquedaIndividual, soloAlertas, mesesOrden]);
+  }, [todosLosSectores, verAlumbrado, verInmuebles, coloniaFiltrada, sectorActivo, modoBusquedaIndividual, soloAlertas, soloBajasCfe, mesesOrden]);
 
   const chartData = useMemo(() => {
     if (!sectorActivo?.recibos) return [];
@@ -256,33 +227,46 @@ const MapaBase = () => {
     return { tieneNota: !!reciboSeleccionado.notasObservaciones, texto: reciboSeleccionado.notasObservaciones || "Sin observaciones.", mes: reciboSeleccionado.mes };
   }, [reciboSeleccionado]);
 
+  // Validar observaciones reales (ignorando "nuevo registro") al abrir la gráfica del sector
+  useEffect(() => {
+    if (sectorActivo && sectorActivo.recibos && verGraficaConsumo) {
+      const reciboConNotaReal = sectorActivo.recibos.find(r => {
+        const nota = r.notasObservaciones ? r.notasObservaciones.trim().toLowerCase() : "";
+        return nota !== "" && !nota.includes("nuevo registro");
+      });
+      if (reciboConNotaReal) {
+        mostrarToast(`⚠️ Observación (${reciboConNotaReal.mes} ${reciboConNotaReal.anio}): ${reciboConNotaReal.notasObservaciones}`, 'error');
+      }
+    }
+  }, [sectorActivo, verGraficaConsumo]);
+
+  // Verificamos si el sector activo tiene alguna observación real (excluyendo "nuevo registro")
+  const sectorTieneObservacionReal = useMemo(() => {
+    if (!sectorActivo || !sectorActivo.recibos) return false;
+    return sectorActivo.recibos.some(r => {
+      const nota = r.notasObservaciones ? r.notasObservaciones.trim().toLowerCase() : "";
+      return nota !== "" && !nota.includes("nuevo registro");
+    });
+  }, [sectorActivo]);
+
   return (
-    <div 
-      onMouseMove={(e) => { 
-        if (arrastrandoGrafica.current) {
-          setPosGrafica({ 
-            x: e.clientX - offsetGrafica.current.x, 
-            y: e.clientY - offsetGrafica.current.y 
-          });
-        }
-      }} 
-      onMouseUp={() => { arrastrandoGrafica.current = false; }} 
-      style={{ height: '100vh', width: '100vw', position: 'relative', background: '#0b0f19', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}
-    >
+    <div style={{ height: '100vh', width: '100vw', position: 'relative', background: '#0b0f19', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}>
       
       {/* SKELETON / SPINNER INDICADOR DE CARGA GLOBAL */}
-      {cargando && (
+      {loadingGlobal && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(11, 15, 25, 0.85)', zIndex: 9999,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           backdropFilter: 'blur(6px)'
         }}>
-          <div style={{
-            width: '48px', height: '48px', border: '4px solid rgba(56, 189, 248, 0.2)',
-            borderTop: '4px solid #38bdf8', borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }}></div>
+          <div style={{ position: 'relative', width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{
+              position: 'absolute', width: '64px', height: '64px', border: '4px solid rgba(56, 189, 248, 0.2)',
+              borderTop: '4px solid #38bdf8', borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}></div>
+          </div>
           <p style={{ color: '#38bdf8', fontWeight: 800, fontSize: '14px', marginTop: '16px', letterSpacing: '0.05em' }}>
             CARGANDO RED DE ALUMBRADO...
           </p>
@@ -355,6 +339,16 @@ const MapaBase = () => {
       </div>
 
       <style>{`
+        @keyframes parpadeoLentoBoton {
+          0% { opacity: 0.4; transform: scale(0.98); }
+          50% { opacity: 1; transform: scale(1.08); box-shadow: 0 0 16px #fbbf24; }
+          100% { opacity: 0.4; transform: scale(0.98); }
+        }
+
+        .btn-observacion-activa {
+          animation: parpadeoLentoBoton 2.2s ease-in-out infinite;
+        }
+
         .leaflet-tooltip.tooltip-sin-fondo, .leaflet-popup-content-wrapper {
           background: transparent !important;
           border: none !important;
@@ -372,7 +366,9 @@ const MapaBase = () => {
           background: #1e293b;
           color: #ffffff;
           border: 2px solid #000000;
-          padding: 10px 18px;
+          padding: 10px 0px;
+          width: 160px;
+          text-align: center;
           border-radius: 50px;
           cursor: pointer;
           font-weight: 900;
@@ -443,11 +439,12 @@ const MapaBase = () => {
 
       {/* MENÚ DESPLEGABLE VERTICAL */}
       <div className={`menu-desplegable-container ${menuAbierto ? 'abierto' : ''}`}>
-        <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>ALUMBRADO</button>
-        <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>INMUEBLES</button>
-        <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); mostrarToast(`Filtro Alertas ${!soloAlertas ? 'activado' : 'desactivado'}`); }} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>ALERTAS</button>
-        <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>3D POSTES</button>
-        <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>GRÁFICA</button>
+        <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>ALUMBRADO</button>
+        <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>INMUEBLES</button>
+        <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); mostrarToast(`Filtro Alertas ${!soloAlertas ? 'activado' : 'desactivado'}`); }} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>ALERTAS</button>
+        <button onClick={() => { setSoloBajasCfe(!soloBajasCfe); setMenuAbierto(false); mostrarToast(`Filtro Bajas CFE ${!soloBajasCfe ? 'activado' : 'desactivado'}`); }} style={{ background: soloBajasCfe ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>BAJAS CFE</button>
+        <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>3D POSTES</button>
+        <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>GRÁFICA</button>
         
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
@@ -457,91 +454,110 @@ const MapaBase = () => {
           setColoniaFiltrada(null); 
           setModoBusquedaIndividual(false); 
           setSoloAlertas(false); 
+          setSoloBajasCfe(false);
           setVerModo3D(false);
           setMenuAbierto(false);
           mostrarToast('Mapa limpiado', 'exito');
-        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 18px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', transition: 'all 0.2s' }}>CLEAN</button>
+        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>CLEAN</button>
         
-        <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 14px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
+        <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
       </div>
 
-      {/* TARJETA DE GRÁFICA MOVIBLE (DRAGGABLE) */}
+      {/* EFECTO DE FONDO OSCURECIDO Y DIFUMINADO (MODAL BACKDROP) CUANDO SE ABRE LA GRÁFICA */}
+      {verGraficaConsumo && sectorActivo && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(8px)', zIndex: 5998,
+          animation: 'fadeIn 0.2s ease-in-out'
+        }} onClick={() => setVerGraficaConsumo(false)} />
+      )}
+
+      {/* TARJETA DE GRÁFICA CENTRADA AMPLIADA Y PROFESIONAL */}
       {verGraficaConsumo && sectorActivo && (
         <div 
           style={{ 
-            left: `${posGrafica.x}px`, top: `${posGrafica.y}px`, 
-            position: 'absolute', zIndex: 6000, width: '420px', 
-            maxHeight: '85vh', overflowY: 'auto', background: '#0f172a', color: '#f8fafc', padding: '20px', 
-            borderRadius: '20px', boxShadow: '0 25px 50px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.12)', boxSizing: 'border-box' 
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            zIndex: 6000, width: '700px', maxWidth: '95vw',
+            maxHeight: '90vh', overflowY: 'auto', background: '#0b101d', color: '#f8fafc', padding: '30px', 
+            borderRadius: '24px', boxShadow: '0 25px 60px rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.15)', boxSizing: 'border-box',
+            animation: 'zoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >
-          <div 
-            onMouseDown={(e) => {
-              arrastrandoGrafica.current = true;
-              offsetGrafica.current = {
-                x: e.clientX - posGrafica.x,
-                y: e.clientY - posGrafica.y
-              };
-            }}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', cursor: 'grab', userSelect: 'none' }}
-          >
-            <div><p style={{ margin: 0, fontSize: '9px', color: '#38bdf8', fontWeight: 800, letterSpacing: '0.05em' }}>{sectorActivo.nombreColonia}</p><h3 style={{ margin: 0, fontSize: '15px', fontWeight: 900, color: '#ffffff' }}>⚡ {sectorActivo.clave}</h3></div>
-            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-              <button onClick={() => { setMostrarCFE(!mostrarCFE); setMostrarObservacion(false); }} style={{ background: mostrarCFE ? '#059669' : 'rgba(5, 150, 105, 0.15)', color: mostrarCFE ? 'white' : '#34d399', border: '1px solid rgba(5, 150, 105, 0.4)', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontWeight: '900', fontSize: '9px' }}>CFE</button>
-              <button onClick={() => { setMostrarObservacion(!mostrarObservacion); setMostrarCFE(false); }} style={{ background: mostrarObservacion ? '#f59e0b' : (notaActual.tieneNota ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.08)'), color: mostrarObservacion ? 'white' : (notaActual.tieneNota ? '#fbbf24' : '#94a3b8'), border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '5px 8px', cursor: 'pointer', fontWeight: '900', fontSize: '9px' }}> <IconoInfo color="currentColor" /> </button>
-              <button onClick={() => setVerGraficaConsumo(false)} style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: 'none', borderRadius: '50%', width: '26px', height: '26px', cursor: 'pointer', fontWeight: '900', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '16px', marginBottom: '20px' }}>
+            <div>
+              <p style={{ margin: 0, fontSize: '11px', color: '#38bdf8', fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{sectorActivo.nombreColonia}</p>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#ffffff' }}>⚡ {sectorActivo.clave}</h3>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button onClick={() => { setMostrarCFE(!mostrarCFE); setMostrarObservacion(false); }} style={{ background: mostrarCFE ? '#059669' : 'rgba(5, 150, 105, 0.15)', color: mostrarCFE ? 'white' : '#34d399', border: '1px solid rgba(5, 150, 105, 0.4)', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontWeight: '900', fontSize: '11px' }}>CFE</button>
+              
+              {/* Botón de información con animación de parpadeo lenta si tiene observación real */}
+              <button 
+                onClick={() => { setMostrarObservacion(!mostrarObservacion); setMostrarCFE(false); }} 
+                className={sectorTieneObservacionReal ? 'btn-observacion-activa' : ''}
+                style={{ 
+                  background: mostrarObservacion ? '#f59e0b' : (sectorTieneObservacionReal ? '#fbbf24' : (notaActual.tieneNota ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.08)')), 
+                  color: mostrarObservacion || sectorTieneObservacionReal ? '#0f172a' : (notaActual.tieneNota ? '#fbbf24' : '#94a3b8'), 
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontWeight: '900', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' 
+                }}
+              > 
+                <IconoInfo color="currentColor" /> 
+                {sectorTieneObservacionReal && '!'}
+              </button>
+
+              <button onClick={() => setVerGraficaConsumo(false)} style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: 'none', borderRadius: '50%', width: '34px', height: '34px', cursor: 'pointer', fontWeight: '900', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
           </div>
 
           {mostrarCFE && (
-            <div style={{ marginTop: '10px', padding: '12px', background: 'rgba(6, 78, 59, 0.3)', borderRadius: '12px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                <div style={{ gridColumn: 'span 3', marginBottom: '2px' }}><span style={{ background: '#059669', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 900 }}>PERÍODO: {(reciboSeleccionado?.mes || 'S/D').toUpperCase()} {anioSeleccionado}</span></div>
-                <div style={{ gridColumn: 'span 1' }}><small style={{ color: '#34d399', fontWeight: 800, fontSize: '7px' }}>MEDIDOR</small><p style={{ margin: 0, fontWeight: 800, fontSize: '10px', color: '#fff' }}>{sectorActivo.medidor || 'N/A'}</p></div>
-                <div style={{ gridColumn: 'span 2' }}><small style={{ color: '#34d399', fontWeight: 800, fontSize: '7px' }}>CUENTA</small><p style={{ margin: 0, fontWeight: 800, fontSize: '10px', color: '#fff' }}>{sectorActivo.cuenta || 'N/A'}</p></div>
-                <div style={{ gridColumn: 'span 3', display: 'flex', gap: '4px', margin: '3px 0' }}>
-                  <div style={{ flex: 1, background: 'rgba(15, 23, 42, 0.6)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(52, 211, 153, 0.2)', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '6px', fontWeight: 800, display: 'block' }}>ANT.</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900, color: '#ffffff' }}>{formatearNumero(reciboSeleccionado?.lecturaAnterior)}</p></div>
-                  <div style={{ flex: 1, background: 'rgba(15, 23, 42, 0.6)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(52, 211, 153, 0.2)', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '6px', fontWeight: 800, display: 'block' }}>ACT.</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900, color: '#ffffff' }}>{formatearNumero(reciboSeleccionado?.lecturaActual)}</p></div>
+            <div style={{ marginTop: '12px', padding: '16px', background: 'rgba(6, 78, 59, 0.3)', borderRadius: '14px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                <div style={{ gridColumn: 'span 3', marginBottom: '2px' }}><span style={{ background: '#059669', color: 'white', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 900 }}>PERÍODO: {(reciboSeleccionado?.mes || 'S/D').toUpperCase()} {anioSeleccionado}</span></div>
+                <div style={{ gridColumn: 'span 1' }}><small style={{ color: '#34d399', fontWeight: 800, fontSize: '9px' }}>MEDIDOR</small><p style={{ margin: 0, fontWeight: 800, fontSize: '13px', color: '#fff' }}>{sectorActivo.medidor || 'N/A'}</p></div>
+                <div style={{ gridColumn: 'span 2' }}><small style={{ color: '#34d399', fontWeight: 800, fontSize: '9px' }}>CUENTA</small><p style={{ margin: 0, fontWeight: 800, fontSize: '13px', color: '#fff' }}>{sectorActivo.cuenta || 'N/A'}</p></div>
+                <div style={{ gridColumn: 'span 3', display: 'flex', gap: '8px', margin: '6px 0' }}>
+                  <div style={{ flex: 1, background: 'rgba(15, 23, 42, 0.6)', padding: '8px', borderRadius: '10px', border: '1px solid rgba(52, 211, 153, 0.2)', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '8px', fontWeight: 800, display: 'block' }}>ANT.</small><p style={{ margin: 0, fontSize: '13px', fontWeight: 900, color: '#ffffff' }}>{formatearNumero(reciboSeleccionado?.lecturaAnterior)}</p></div>
+                  <div style={{ flex: 1, background: 'rgba(15, 23, 42, 0.6)', padding: '8px', borderRadius: '10px', border: '1px solid rgba(52, 211, 153, 0.2)', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '8px', fontWeight: 800, display: 'block' }}>ACT.</small><p style={{ margin: 0, fontSize: '13px', fontWeight: 900, color: '#ffffff' }}>{formatearNumero(reciboSeleccionado?.lecturaActual)}</p></div>
                 </div>
-                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '4px', borderRadius: '6px', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '6px', fontWeight: 800 }}>CARGA</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900 }}>{sectorActivo.carga || 0}</p></div>
-                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '4px', borderRadius: '6px', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '6px', fontWeight: 800 }}>CPD</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900 }}>{sectorActivo.cpd || 0}</p></div>
-                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '4px', borderRadius: '6px', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '6px', fontWeight: 800 }}>TARIFA</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900 }}>{sectorActivo.tarifa || '5A'}</p></div>
-                <div style={{ gridColumn: 'span 3', borderTop: '1px dashed rgba(52, 211, 153, 0.3)', paddingTop: '4px', display: 'flex', justifyContent: 'space-around' }}>
-                  <div style={{ textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '7px', fontWeight: 800 }}>POSTES</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900 }}>{totalesInfraestructura.postes}</p></div>
-                  <div style={{ textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '7px', fontWeight: 800 }}>LUMINARIAS</small><p style={{ margin: 0, fontSize: '10px', fontWeight: 900 }}>{totalesInfraestructura.lamparas}</p></div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '8px', borderRadius: '10px', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '8px', fontWeight: 800 }}>CARGA</small><p style={{ margin: 0, fontSize: '12px', fontWeight: 900 }}>{sectorActivo.carga || 0}</p></div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '8px', borderRadius: '10px', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '8px', fontWeight: 800 }}>CPD</small><p style={{ margin: 0, fontSize: '12px', fontWeight: 900 }}>{sectorActivo.cpd || 0}</p></div>
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '8px', borderRadius: '10px', textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '8px', fontWeight: 800 }}>TARIFA</small><p style={{ margin: 0, fontSize: '12px', fontWeight: 900 }}>{sectorActivo.tarifa || '5A'}</p></div>
+                <div style={{ gridColumn: 'span 3', borderTop: '1px dashed rgba(52, 211, 153, 0.3)', paddingTop: '8px', display: 'flex', justifyContent: 'space-around' }}>
+                  <div style={{ textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '9px', fontWeight: 800 }}>POSTES</small><p style={{ margin: 0, fontSize: '13px', fontWeight: 900 }}>{totalesInfraestructura.postes}</p></div>
+                  <div style={{ textAlign: 'center' }}><small style={{ color: '#34d399', fontSize: '9px', fontWeight: 800 }}>LUMINARIAS</small><p style={{ margin: 0, fontSize: '13px', fontWeight: 900 }}>{totalesInfraestructura.lamparas}</p></div>
                 </div>
               </div>
             </div>
           )}
 
           {mostrarObservacion && (
-            <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(120, 53, 15, 0.3)', borderRadius: '10px', border: '1px solid rgba(251, 191, 36, 0.3)', fontSize: '11px' }}>
-              <strong style={{ fontSize: '9px', color: '#fbbf24' }}>NOTA ({notaActual.mes?.toUpperCase()})</strong>
-              <p style={{ margin: '3px 0 0', color: '#fde68a', lineHeight: '1.4' }}>{notaActual.texto}</p>
+            <div style={{ marginTop: '14px', padding: '14px', background: 'rgba(120, 53, 15, 0.3)', borderRadius: '12px', border: '1px solid rgba(251, 191, 36, 0.3)', fontSize: '13px' }}>
+              <strong style={{ fontSize: '11px', color: '#fbbf24' }}>NOTA ({notaActual.mes?.toUpperCase()})</strong>
+              <p style={{ margin: '6px 0 0', color: '#fde68a', lineHeight: '1.4' }}>{notaActual.texto}</p>
             </div>
           )}
 
-          <div style={{ height: '170px', marginTop: '12px', width: '100%' }}>
+          <div style={{ height: '260px', marginTop: '18px', width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
-                <XAxis dataKey="mes" tick={{fill: '#94a3b8', fontSize: 9}} />
-                <YAxis tickFormatter={formatearNumero} axisLine={false} tick={{fill: '#94a3b8', fontSize: 8}} width={45} />
+                <XAxis dataKey="mes" tick={{fill: '#94a3b8', fontSize: 11}} />
+                <YAxis tickFormatter={formatearNumero} axisLine={false} tick={{fill: '#94a3b8', fontSize: 10}} width={60} />
                 <Tooltip content={<CustomTooltipGrafica />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
-                <ReferenceLine y={Number(sectorActivo.consumoIdeal)} stroke="#10b981" strokeDasharray="3 3" label={{ position: 'right', value: 'IDEAL', fill: '#10b981', fontSize: 6 }} />
-                <ReferenceLine y={Number(sectorActivo.consumoAceptable)} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'right', value: 'ACEPTAB', fill: '#f59e0b', fontSize: 6 }} />
-                <ReferenceLine y={Number(sectorActivo.consumoMaximo)} stroke="#ef4444" strokeDasharray="5 5" label={{ position: 'right', value: 'MAX', fill: '#ef4444', fontSize: 6 }} />
-                <Bar dataKey="valor" radius={[4, 4, 0, 0]} barSize={16}>
+                <ReferenceLine y={Number(sectorActivo.consumoIdeal)} stroke="#10b981" strokeDasharray="3 3" label={{ position: 'right', value: 'IDEAL', fill: '#10b981', fontSize: 8 }} />
+                <ReferenceLine y={Number(sectorActivo.consumoAceptable)} stroke="#f59e0b" strokeDasharray="3 3" label={{ position: 'right', value: 'ACEPTAB', fill: '#f59e0b', fontSize: 8 }} />
+                <ReferenceLine y={Number(sectorActivo.consumoMaximo)} stroke="#ef4444" strokeDasharray="5 5" label={{ position: 'right', value: 'MAX', fill: '#ef4444', fontSize: 8 }} />
+                <Bar dataKey="valor" radius={[6, 6, 0, 0]} barSize={26}>
                   {chartData.map((e, i) => <Cell key={i} fill={e.valor > (Number(sectorActivo.consumoMaximo) || 99999) ? '#ef4444' : '#3b82f6'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginTop: '12px' }}>
-            <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '6px', borderRadius: '8px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}><p style={{ margin: 0, fontSize: '7px', color: '#34d399', fontWeight: 800 }}>IDEAL</p><p style={{ margin: 0, fontSize: '10px', fontWeight: 900, color: '#6ee7b7' }}>{formatearNumero(sectorActivo.consumoIdeal)}</p></div>
-            <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '6px', borderRadius: '8px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.2)' }}><p style={{ margin: 0, fontSize: '7px', color: '#fbbf24', fontWeight: 800 }}>ACEPTABLE</p><p style={{ margin: 0, fontSize: '10px', fontWeight: 900, color: '#fde68a' }}>{formatearNumero(sectorActivo.consumoAceptable)}</p></div>
-            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '6px', borderRadius: '8px', textAlign: 'center', border: '1px solid rgba(239, 68, 68, 0.1)' }}><p style={{ margin: 0, fontSize: '7px', color: '#f87171', fontWeight: 800 }}>MÁXIMO</p><p style={{ margin: 0, fontSize: '10px', fontWeight: 900, color: '#fca5a5' }}>{formatearNumero(sectorActivo.consumoMaximo)}</p></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginTop: '18px' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '10px', borderRadius: '12px', textAlign: 'center', border: '1px solid rgba(16, 185, 129, 0.2)' }}><p style={{ margin: 0, fontSize: '9px', color: '#34d399', fontWeight: 800 }}>IDEAL</p><p style={{ margin: 0, fontSize: '13px', fontWeight: 900, color: '#6ee7b7' }}>{formatearNumero(sectorActivo.consumoIdeal)}</p></div>
+            <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '10px', borderRadius: '12px', textAlign: 'center', border: '1px solid rgba(245, 158, 11, 0.1)' }}><p style={{ margin: 0, fontSize: '9px', color: '#fbbf24', fontWeight: 800 }}>ACEPTABLE</p><p style={{ margin: 0, fontSize: '13px', fontWeight: 900, color: '#fde68a' }}>{formatearNumero(sectorActivo.consumoAceptable)}</p></div>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '10px', borderRadius: '12px', textAlign: 'center', border: '1px solid rgba(239, 68, 68, 0.1)' }}><p style={{ margin: '0', fontSize: '9px', color: '#f87171', fontWeight: 800 }}>MÁXIMO</p><p style={{ margin: 0, fontSize: '13px', fontWeight: 900, color: '#fca5a5' }}>{formatearNumero(sectorActivo.consumoMaximo)}</p></div>
           </div>
         </div>
       )}

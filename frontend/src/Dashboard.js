@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, ComposedChart, Cell
 } from 'recharts';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { useApp } from './AppContext'; // <--- Importamos el hook global
 
 const COLORS = {
-  alumbrado: '#eab308',       // Amarillo/ámbar para alumbrado
-  inmuebles: '#10b981',       // Verde para inmuebles
-  costo: '#eab308',           // Amarillo para gastos / importes generales
-  consumoMadre: '#10b981',    // Verde para consumo general en gráfica madre
+  alumbrado: '#eab308',       
+  inmuebles: '#10b981',       
+  costo: '#eab308',           
+  consumoMadre: '#10b981',    
   alerta: '#ef4444', 
   aceptable: '#f59e0b', 
   bg: '#020617',          
@@ -20,9 +21,6 @@ const COLORS = {
   white: '#ffffff',
   luzTooltip: '#38bdf8'       
 };
-
-// --- MEMORIA GLOBAL EN RAM Y CACHÉ DE SESIÓN ---
-let memoriaGlobalDashboard = null;
 
 // --- FORMATEADORES ---
 const formatMK = (v) => {
@@ -105,15 +103,16 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const Dashboard = () => {
+  // Consumimos los datos directamente del AppContext global
+  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal } = useApp();
+
   const [view, setView] = useState("general"); 
   const [anio, setAnio] = useState("2026");
   const [rangoTiempo, setRangoTiempo] = useState("anual"); 
-  const [todosLosSectores, setTodosLosSectores] = useState([]);
   const [seleccion, setSeleccion] = useState(null); 
   const [busqueda, setBusqueda] = useState("");
   const [listaSugerencias, setListaSugerencias] = useState([]);
   const [exportando, setExportando] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const dashboardRef = useRef(null);
 
@@ -150,59 +149,10 @@ const Dashboard = () => {
     return meses.find(n => val.startsWith(n.toUpperCase())) || null;
   };
 
-  // --- CARGA DE DATOS OPTIMIZADA CON RAM Y SESIÓN ---
-  const fetchData = useCallback(async (forzarRecarga = false) => {
-    const cacheKey = `cache_dashboard_${anio}`;
-
-    if (!forzarRecarga && memoriaGlobalDashboard) {
-      setTodosLosSectores(memoriaGlobalDashboard);
-      setLoading(false);
-      return;
-    }
-
-    const datosGuardados = sessionStorage.getItem(cacheKey);
-    if (!forzarRecarga && datosGuardados) {
-      const parsedData = JSON.parse(datosGuardados);
-      memoriaGlobalDashboard = parsedData;
-      setTodosLosSectores(parsedData);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    const query = `query { 
-      todosLosSectores { 
-        id clave clasificacion consumoIdeal consumoAceptable consumoMaximo nombreColonia
-        recibos { anio mes consumoKwh importe } 
-        luminarias { id luminariasPorPoste }
-      } 
-    }`;
-    
-    try {
-      const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
-      
-      const res = await fetch(API_URL, {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
-      });
-
-      const result = await res.json();
-      const newSectores = result.data?.todosLosSectores || [];
-      
-      memoriaGlobalDashboard = newSectores;
-      setTodosLosSectores(newSectores);
-      sessionStorage.setItem(cacheKey, JSON.stringify(newSectores));
-    } catch (err) { 
-      console.error("Error al cargar dashboard:", err); 
-    } finally {
-      setLoading(false);
-    }
-  }, [anio]);
-
+  // Carga centralizada mediante el contexto global
   useEffect(() => { 
-    fetchData(); 
-  }, [fetchData]);
+    cargarSectoresGlobal(); 
+  }, [cargarSectoresGlobal]);
 
   useEffect(() => {
     if (busqueda.length < 2) { setListaSugerencias([]); return; }
@@ -406,12 +356,8 @@ const Dashboard = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button onClick={() => {
-            memoriaGlobalDashboard = null;
-            sessionStorage.removeItem(`cache_dashboard_${anio}`);
-            fetchData(true);
-          }} disabled={loading} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {loading ? 'Sincronizando...' : 'Sincronizar'}
+          <button onClick={() => cargarSectoresGlobal(true)} disabled={loadingGlobal} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {loadingGlobal ? 'Sincronizando...' : 'Sincronizar'}
           </button>
 
           <button onClick={exportarPDF} disabled={exportando} style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid #38bdf8', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>

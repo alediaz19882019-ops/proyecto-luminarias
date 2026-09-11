@@ -7,13 +7,46 @@ const AppContext = createContext();
 export const AppProvider = ({ children }) => {
   const [todosLosSectores, setTodosLosSectores] = useState([]);
   const [loadingGlobal, setLoadingGlobal] = useState(false);
+  const [token, setToken] = useState(localStorage.getItem('token') || null);
   const fetchingRef = useRef(false);
 
-  const cargarSectoresGlobal = useCallback((forzarRecarga = false) => {
-    // Si ya existen datos cargados y no se fuerza, evita repetir el fetch
-    if (!forzarRecarga && todosLosSectores.length > 0) return;
+  // Función para limpiar credenciales y redirigir al login si expira la sesión
+  const forzarReLogin = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    setToken(null);
+    window.location.href = '/login';
+  }, []);
+
+  // Función centralizada de API Fetch con interceptor de Unauthorized
+  const apiFetch = useCallback(async (url, options = {}) => {
+    const currentToken = localStorage.getItem('token') || token;
     
-    // Bloquea peticiones duplicadas simultáneas
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(currentToken ? { 'Authorization': `Bearer ${currentToken}` } : {}),
+      ...(options.headers || {})
+    };
+
+    try {
+      const response = await fetch(url, { ...options, headers });
+      const data = await response.json();
+
+      // Detectar si el servidor rechaza por falta de autenticación
+      if (response.status === 401 || (data.errors && data.errors.some(err => err.message === 'Unable to authenticate you' || err.id === 'Unauthorized'))) {
+        forzarReLogin();
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error en la petición de red:', error);
+      throw error;
+    }
+  }, [token, forzarReLogin]);
+
+  const cargarSectoresGlobal = useCallback((forzarRecarga = false) => {
+    if (!forzarRecarga && todosLosSectores.length > 0) return;
     if (fetchingRef.current && !forzarRecarga) return;
 
     fetchingRef.current = true;
@@ -27,16 +60,14 @@ export const AppProvider = ({ children }) => {
       } 
     }`;
 
-    fetch(API_URL, {
+    apiFetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query })
     })
-      .then(res => res.json())
       .then(data => {
         fetchingRef.current = false;
         setLoadingGlobal(false);
-        if (data.data?.todosLosSectores) {
+        if (data && data.data?.todosLosSectores) {
           const listaMapeada = data.data.todosLosSectores.map(sec => ({
             ...sec,
             luminarias: sec.luminarias?.map(lum => ({ 
@@ -53,10 +84,10 @@ export const AppProvider = ({ children }) => {
         setLoadingGlobal(false);
         console.error("Error cargando datos globales:", err);
       });
-  }, [todosLosSectores.length]);
+  }, [todosLosSectores.length, apiFetch]);
 
   return (
-    <AppContext.Provider value={{ todosLosSectores, cargarSectoresGlobal, loadingGlobal, setTodosLosSectores }}>
+    <AppContext.Provider value={{ todosLosSectores, cargarSectoresGlobal, loadingGlobal, setTodosLosSectores, token, setToken, apiFetch, forzarReLogin }}> 
       {children}
     </AppContext.Provider>
   );

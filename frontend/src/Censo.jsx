@@ -157,6 +157,7 @@ const crearIconoSector = (isActive, sector, mesesOrden) => {
   let color = '#2563eb'; 
   if (esAlerta) color = '#dc2626'; 
   else if (sector.clasificacion?.toUpperCase().includes("INMUEBLE")) color = '#ff8c00ff'; 
+  else if (sector.clasificacion?.toUpperCase().includes("ALUMBRADO - AJUSTE")) color = '#8b5cf6'; // Color distintivo para Ajustes
 
   return crearIconoSectorPersonalizado(isActive, color);
 };
@@ -234,10 +235,10 @@ const Censo = () => {
   const [nuevaLuminariaForm, setNuevaLuminariaForm] = useState({
     cantidad_postes: 1, latitud: '', longitud: '', tipo_lampara: 'LED', descripcion: '', luminarias_por_poste: 1, capacidad: '70'
   });
-  
+   
   const [modoCrearSector, setModoCrearSector] = useState(false);
   const [nuevoSectorForm, setNuevoSectorForm] = useState({
-    clave: '', clasificacion: 'ALUMBRADO PUBLICO', nombreColonia: '', latitud: '', longitud: '', consumo_ideal: 0, consumo_aceptable: 0, consumo_maximo: 0, medidor: '', cuenta: '', carga: 0, cpd: 0, tarifa: '07'
+    clave: '', clasificacion: 'Alumbrado Publico', nombreColonia: '', latitud: '', longitud: '', consumo_ideal: 0, consumo_aceptable: 0, consumo_maximo: 0, medidor: '', cuenta: '', carga: 0, cpd: 0, tarifa: '07'
   });
 
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
@@ -457,7 +458,7 @@ const Censo = () => {
 
   const actualizarAuditoriaPoste = (posteId, nuevoEstado, observacionTexto = '') => {
     if (!sectorSeleccionado) return;
-    
+     
     let yaEstabaCompletoAntes = totalesSectorActual.porcentaje === 100;
 
     const luminariasActualizadas = sectorSeleccionado.luminarias.map(lum => {
@@ -492,7 +493,7 @@ const Censo = () => {
       });
       setMensaje({ tipo: 'exito', texto: `✓ Poste #${posteId} auditado.` });
     }
-    
+     
     setTimeout(() => {
       setLuminariaSeleccionada(null);
       setMensaje(null);
@@ -562,9 +563,9 @@ const Censo = () => {
     setSaving(false);
     setModoCrearLuminaria(false);
     setPostesTemporales([]);
-    
+     
     cargarSectoresGlobal(true);
-    
+     
     setMensaje({ tipo: 'exito', texto: '✨ ¡Postes guardados con éxito! Haz clic en el sector para verlos pintados en el mapa.' });
     setTimeout(() => setMensaje(null), 4500);
   };
@@ -623,10 +624,10 @@ const Censo = () => {
   const eliminarSectorSeleccionado = () => {
     if (!sectorSeleccionado) return;
     if (!window.confirm(`⚠️ ¿Estás seguro de eliminar el sector "${sectorSeleccionado.clave}" y todas sus luminarias? Esta acción no se puede deshacer.`)) return;
-    
+     
     setSaving(true);
     const sectorIdActual = sectorSeleccionado.id;
-    
+     
     const sectorEliminadoId = String(sectorIdActual);
     const listaRestante = todosLosSectores.filter(s => String(s.id) !== sectorEliminadoId);
     setTodosLosSectores(listaRestante);
@@ -706,7 +707,7 @@ const Censo = () => {
   const eliminarLuminariaSeleccionada = () => {
     if (!sectorSeleccionado || !luminariaSeleccionada) return;
     if (!window.confirm(`¿Eliminar poste #${luminariaSeleccionada.id}?`)) return;
-    
+     
     setSaving(true);
     const posteIdAEliminar = String(luminariaSeleccionada.id);
 
@@ -752,11 +753,19 @@ const Censo = () => {
     const mutation = `
       mutation {
         crearSector(input: {
-          clave: "${nuevoSectorForm.clave}", clasificacion: "${nuevoSectorForm.clasificacion}", nombreColonia: "${nuevoSectorForm.nombreColonia}",
-          latitud: ${parseFloat(nuevoSectorForm.latitud)}, longitud: ${parseFloat(nuevoSectorForm.longitud)},
-          consumoIdeal: ${parseFloat(nuevoSectorForm.consumo_ideal)}, consumoAceptable: ${parseFloat(nuevoSectorForm.consumo_aceptable)},
-          consumoMaximo: ${parseFloat(nuevoSectorForm.consumo_maximo)}, medidor: "${nuevoSectorForm.medidor}", cuenta: "${nuevoSectorForm.cuenta}",
-          carga: ${parseFloat(nuevoSectorForm.carga)}, cpd: ${parseFloat(nuevoSectorForm.cpd)}, tarifa: "${nuevoSectorForm.tarifa}"
+          clave: "${nuevoSectorForm.clave}", 
+          clasificacion: "${nuevoSectorForm.clasificacion}", 
+          nombreColonia: "${nuevoSectorForm.nombreColonia}",
+          latitud: ${parseFloat(nuevoSectorForm.latitud)}, 
+          longitud: ${parseFloat(nuevoSectorForm.longitud)},
+          consumoIdeal: ${parseFloat(nuevoSectorForm.consumo_ideal)}, 
+          consumoAceptable: ${parseFloat(nuevoSectorForm.consumo_aceptable)},
+          consumoMaximo: ${parseFloat(nuevoSectorForm.consumo_maximo)}, 
+          medidor: "${nuevoSectorForm.medidor}", 
+          cuenta: "${nuevoSectorForm.cuenta}",
+          carga: ${parseFloat(nuevoSectorForm.carga)}, 
+          cpd: ${parseFloat(nuevoSectorForm.cpd)}, 
+          tarifa: "${nuevoSectorForm.tarifa}"
         }) { id clave clasificacion latitud longitud nombreColonia medidor cuenta }
       }
     `;
@@ -777,7 +786,7 @@ const Censo = () => {
         if (!resData.errors && resData.data?.crearSector) {
           const nuevoSecServidor = { ...resData.data.crearSector, luminarias: [] };
           const listaActualizada = [...todosLosSectores, nuevoSecServidor];
-          
+           
           setTodosLosSectores(listaActualizada);
           setSectorSeleccionado(nuevoSecServidor);
           setModoCrearSector(false);
@@ -804,10 +813,64 @@ const Censo = () => {
         <div className="space-y-2 text-xs">
           <p className="text-[9px] text-slate-400">{nuevoSectorForm.latitud ? '✅ Coordenada capturada.' : '👉 Haz clic en el mapa para marcar ubicación del sector.'}</p>
           <div className="grid grid-cols-2 gap-2">
-            <input type="text" placeholder="Clave (Ej. SEC-080)" value={nuevoSectorForm.clave} onChange={e => setNuevoSectorForm({...nuevoSectorForm, clave: e.target.value})} className="bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
-            <input type="text" placeholder="RPU / Medidor" value={nuevoSectorForm.medidor} onChange={e => setNuevoSectorForm({...nuevoSectorForm, medidor: e.target.value})} className="bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
+            <input type="text" placeholder="Clave (Ej. 596, SEC-080)" value={nuevoSectorForm.clave} onChange={e => setNuevoSectorForm({...nuevoSectorForm, clave: e.target.value})} className="bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
+            <input type="text" placeholder="Medidor (RPU)" value={nuevoSectorForm.medidor} onChange={e => setNuevoSectorForm({...nuevoSectorForm, medidor: e.target.value})} className="bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
           </div>
           <input type="text" placeholder="Nombre de Colonia" value={nuevoSectorForm.nombreColonia} onChange={e => setNuevoSectorForm({...nuevoSectorForm, nombreColonia: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
+          
+          {/* Clasificación y Parámetros CFE del Sector */}
+          <div className="space-y-1.5 pt-1 border-t border-slate-800">
+            <label className="text-[9px] text-cyan-400 uppercase font-bold tracking-wider block">Clasificación y Parámetros CFE</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Clasificación:</label>
+                <select 
+                  value={nuevoSectorForm.clasificacion} 
+                  onChange={e => setNuevoSectorForm({...nuevoSectorForm, clasificacion: e.target.value})} 
+                  className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold"
+                >
+                  <option value="Alumbrado Publico">Alumbrado Publico</option>
+                  <option value="Inmuebles">Inmuebles</option>
+                  <option value="ALUMBRADO - AJUSTE">ALUMBRADO - AJUSTE</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Cuenta:</label>
+                <input type="text" placeholder="Cuenta CFE" value={nuevoSectorForm.cuenta} onChange={e => setNuevoSectorForm({...nuevoSectorForm, cuenta: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Carga (kW):</label>
+                <input type="number" step="0.001" value={nuevoSectorForm.carga} onChange={e => setNuevoSectorForm({...nuevoSectorForm, carga: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">CPD:</label>
+                <input type="number" step="0.001" value={nuevoSectorForm.cpd} onChange={e => setNuevoSectorForm({...nuevoSectorForm, cpd: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Tarifa:</label>
+                <input type="text" value={nuevoSectorForm.tarifa} onChange={e => setNuevoSectorForm({...nuevoSectorForm, tarifa: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Ideal (kWh):</label>
+                <input type="number" step="0.01" value={nuevoSectorForm.consumo_ideal} onChange={e => setNuevoSectorForm({...nuevoSectorForm, consumo_ideal: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Aceptable:</label>
+                <input type="number" step="0.01" value={nuevoSectorForm.consumo_aceptable} onChange={e => setNuevoSectorForm({...nuevoSectorForm, consumo_aceptable: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Máximo:</label>
+                <input type="number" step="0.01" value={nuevoSectorForm.consumo_maximo} onChange={e => setNuevoSectorForm({...nuevoSectorForm, consumo_maximo: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={() => setModoCrearSector(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl font-black uppercase cursor-pointer text-xs">Cancelar</button>
             <button type="button" onClick={guardarNuevoSector} disabled={saving || !nuevoSectorForm.latitud} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl font-black uppercase cursor-pointer disabled:opacity-50 shadow-lg">{saving ? 'Guardando...' : 'Guardar'}</button>
@@ -1031,9 +1094,44 @@ const Censo = () => {
             <div className="space-y-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
               <div className="grid grid-cols-2 gap-2">
                 <input type="text" value={sectorSeleccionado.clave || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, clave: e.target.value})} className="bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-semibold" placeholder="Clave" />
-                <input type="text" value={sectorSeleccionado.cuenta || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, cuenta: e.target.value})} className="bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-semibold" placeholder="Cuenta" />
+                <input type="text" value={sectorSeleccionado.medidor || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, medidor: e.target.value})} className="bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-semibold" placeholder="Medidor (RPU)" />
               </div>
               <input type="text" value={sectorSeleccionado.nombreColonia || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, nombreColonia: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-semibold" placeholder="Colonia" />
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[8px] text-slate-400 uppercase font-bold">Clasificación:</label>
+                  <select 
+                    value={sectorSeleccionado.clasificacion || 'Alumbrado Publico'} 
+                    onChange={e => setSectorSeleccionado({...sectorSeleccionado, clasificacion: e.target.value})} 
+                    className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold"
+                  >
+                    <option value="Alumbrado Publico">Alumbrado Publico</option>
+                    <option value="Inmuebles">Inmuebles</option>
+                    <option value="ALUMBRADO - AJUSTE">ALUMBRADO - AJUSTE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[8px] text-slate-400 uppercase font-bold">Cuenta:</label>
+                  <input type="text" value={sectorSeleccionado.cuenta || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, cuenta: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                <div>
+                  <label className="text-[8px] text-slate-400 uppercase font-bold">Carga (kW):</label>
+                  <input type="number" step="0.001" value={sectorSeleccionado.carga || 0} onChange={e => setSectorSeleccionado({...sectorSeleccionado, carga: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+                </div>
+                <div>
+                  <label className="text-[8px] text-slate-400 uppercase font-bold">CPD:</label>
+                  <input type="number" step="0.001" value={sectorSeleccionado.cpd || 0} onChange={e => setSectorSeleccionado({...sectorSeleccionado, cpd: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+                </div>
+                <div>
+                  <label className="text-[8px] text-slate-400 uppercase font-bold">Tarifa:</label>
+                  <input type="text" value={sectorSeleccionado.tarifa || '07'} onChange={e => setSectorSeleccionado({...sectorSeleccionado, tarifa: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+                </div>
+              </div>
+
               <button type="button" onClick={guardarCambiosSector} disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl font-black uppercase cursor-pointer text-xs shadow-lg">{saving ? 'Guardando...' : 'Guardar Datos Sector'}</button>
             </div>
           ) : (
@@ -1221,7 +1319,7 @@ const Censo = () => {
 
       <div className={`absolute z-10 pointer-events-none flex p-3 md:p-4 gap-3 transition-all duration-300 ${panelMinimizado ? 'bottom-2 left-3 right-3 md:left-4 md:w-[440px]' : 'inset-x-2 top-2 bottom-2 md:inset-auto md:top-4 md:left-4 md:w-[440px] md:max-h-[calc(100vh-32px)]'}`}>
         <div className="pointer-events-auto w-full bg-slate-950/95 border border-slate-800/90 p-3.5 md:p-4 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col h-full max-h-full">
-            
+             
           <div className="flex justify-between items-center border-b border-slate-800 pb-2.5 shrink-0">
             <div className="flex items-center gap-2">
               <div className="bg-gradient-to-tr from-cyan-600 to-blue-600 p-2 rounded-xl text-white shadow-lg">
@@ -1445,6 +1543,9 @@ const Censo = () => {
                             <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30">Censado 100%</span>
                           )}
                           <span className="text-[9px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded font-bold">RPU: {sec.medidor || 'S/N'}</span>
+                          {sec.clasificacion && (
+                            <span className="text-[8px] bg-purple-950 text-purple-300 border border-purple-800 px-1.5 py-0.5 rounded">{sec.clasificacion}</span>
+                          )}
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5">Colonia: {sec.nombreColonia || 'No especificada'}</p>
                       </div>

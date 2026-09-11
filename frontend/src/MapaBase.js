@@ -143,7 +143,7 @@ const MapaBase = () => {
   const [coloniaFiltrada, setColoniaFiltrada] = useState(null);
   const [modoBusquedaIndividual, setModoBusquedaIndividual] = useState(false);
   const [verAlumbrado, setVerAlumbrado] = useState(true);
-  const [verInmuebles, setVerInmuebles] = useState(true);
+  const [verInmuebles, setVerInmuebles] = useState(false);
   const [soloAlertas, setSoloAlertas] = useState(false);
   const [soloBajasCfe, setSoloBajasCfe] = useState(false);
   const [verModo3D, setVerModo3D] = useState(false); 
@@ -152,6 +152,7 @@ const MapaBase = () => {
   const [mostrarCFE, setMostrarCFE] = useState(false);
   const [mostrarObservacion, setMostrarObservacion] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  
 
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
@@ -186,9 +187,11 @@ const MapaBase = () => {
         return !esInmueble && noTieneLuminarias;
       }
 
+      if (modoBusquedaIndividual && sectorActivo) {
+        return s.id === sectorActivo.id;
+      }
       if (esInmueble && !verInmuebles) return false;
       if (!esInmueble && !verAlumbrado) return false;
-      if (modoBusquedaIndividual && sectorActivo) return s.id === sectorActivo.id;
       if (coloniaFiltrada && s.nombreColonia?.toUpperCase() !== coloniaFiltrada.toUpperCase()) return false;
       if (soloAlertas && !esAlerta) return false;
 
@@ -367,7 +370,7 @@ const MapaBase = () => {
           color: #ffffff;
           border: 2px solid #000000;
           padding: 10px 0px;
-          width: 160px;
+          width: 140px;
           text-align: center;
           border-radius: 50px;
           cursor: pointer;
@@ -399,10 +402,20 @@ const MapaBase = () => {
           filter: brightness(1.25);
           transform: scale(1.02);
         }
+
+        @media (max-width: 480px) {
+          .buscador-container {
+            width: calc(100vw - 180px) !important;
+            max-width: 220px !important;
+          }
+          .btn-menu-estilizado {
+            width: 120px !important;
+          }
+        }
       `}</style>
 
       {/* BUSCADOR EN LA ESQUINA SUPERIOR IZQUIERDA */}
-      <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 1000, width: '300px' }}>
+      <div className="buscador-container" style={{ position: 'absolute', top: 20, left: 20, zIndex: 1000, width: '250px' }}>
         <input type="text" placeholder="🔍 Clave, colonia o medidor..." value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setMostrarSugerencias(true); }}
           style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', outline: 'none', fontSize: '12px', fontWeight: '700', color: '#ffffff', boxSizing: 'border-box' }} />
         {sugerenciasFiltradas.length > 0 && (
@@ -439,12 +452,13 @@ const MapaBase = () => {
 
       {/* MENÚ DESPLEGABLE VERTICAL */}
       <div className={`menu-desplegable-container ${menuAbierto ? 'abierto' : ''}`}>
-        <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>ALUMBRADO</button>
-        <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>INMUEBLES</button>
-        <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); mostrarToast(`Filtro Alertas ${!soloAlertas ? 'activado' : 'desactivado'}`); }} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>ALERTAS</button>
-        <button onClick={() => { setSoloBajasCfe(!soloBajasCfe); setMenuAbierto(false); mostrarToast(`Filtro Bajas CFE ${!soloBajasCfe ? 'activado' : 'desactivado'}`); }} style={{ background: soloBajasCfe ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>BAJAS CFE</button>
-        <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>3D POSTES</button>
-        <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>GRÁFICA</button>
+        <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>ALUMBRADO</button>
+        <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>INMUEBLES</button>
+        <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); mostrarToast(`Filtro Alertas ${!soloAlertas ? 'activado' : 'desactivado'}`); }} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>ALERTAS</button>
+        <button onClick={() => { setSoloBajasCfe(!soloBajasCfe); setMenuAbierto(false); mostrarToast(`Filtro Bajas CFE ${!soloBajasCfe ? 'activado' : 'desactivado'}`); }} style={{ background: soloBajasCfe ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>BAJAS CFE</button>
+        <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>3D POSTES</button>
+        <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>GRÁFICA</button>
+        
         
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
@@ -458,9 +472,9 @@ const MapaBase = () => {
           setVerModo3D(false);
           setMenuAbierto(false);
           mostrarToast('Mapa limpiado', 'exito');
-        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>CLEAN</button>
+        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>CLEAN</button>
         
-        <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '160px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
+        <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
       </div>
 
       {/* EFECTO DE FONDO OSCURECIDO Y DIFUMINADO (MODAL BACKDROP) CUANDO SE ABRE LA GRÁFICA */}

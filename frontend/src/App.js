@@ -62,9 +62,9 @@ const MainApp = () => {
             {[
               { id: 'mapaBase', label: 'MAPA' },
               { id: 'dashboard', label: 'DASHBOARD' },
+              { id: 'censo', label: 'CENSO' },
               { id: 'manager', label: 'MANAGER' },
-              { id: 'censo', label: 'CENSO' }
-            ].map(t => (
+             ].map(t => (
               <span 
                 key={t.id} 
                 onClick={() => setTab(t.id)} 
@@ -181,9 +181,9 @@ const MainApp = () => {
           <>
             {tab === 'mapaBase' && <MapaBase />}
             {tab === 'dashboard' && <Dashboard />}
+            {tab === 'censo' && <Censo />}.  
             {tab === 'manager' && <Manager />}
-            {tab === 'censo' && <Censo />}
-          </>
+           </>
         ) : (
           !isLoggedIn && tab !== 'home' && tab !== 'login' && !showRegisterMsg && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: '15px' }}>

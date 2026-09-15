@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, useMap, CircleMarker, Pane, Tooltip as
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine } from 'recharts';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useApp } from './AppContext'; //
+import { useApp } from './AppContext';
 
 const IconoInfo = ({ color }) => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -130,8 +130,28 @@ const crearIconoPoste3D = (luminariasPorPoste = 1) => {
 };
 
 const MapaBase = () => {
-  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal } = useApp(); //
+  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal } = useApp();
   const [notificacion, setNotificacion] = useState(null);
+  const [progress, setProgress] = useState(0);
+
+  // Efecto para animar el porcentaje de carga estilo Netflix al iniciar el mapa
+  useEffect(() => {
+    if (loadingGlobal) {
+      setProgress(10);
+      const interval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 92) {
+            clearInterval(interval);
+            return 92;
+          }
+          return prev + Math.floor(Math.random() * 12) + 6;
+        });
+      }, 100);
+      return () => clearInterval(interval);
+    } else {
+      setProgress(100);
+    }
+  }, [loadingGlobal]);
 
   const mostrarToast = (mensaje, tipo = 'info') => {
     setNotificacion({ mensaje, tipo });
@@ -153,7 +173,6 @@ const MapaBase = () => {
   const [mostrarObservacion, setMostrarObservacion] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
   
-
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const mesesOrden = useMemo(() => ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], []);
 
@@ -230,7 +249,6 @@ const MapaBase = () => {
     return { tieneNota: !!reciboSeleccionado.notasObservaciones, texto: reciboSeleccionado.notasObservaciones || "Sin observaciones.", mes: reciboSeleccionado.mes };
   }, [reciboSeleccionado]);
 
-  // Validar observaciones reales (ignorando "nuevo registro") al abrir la gráfica del sector
   useEffect(() => {
     if (sectorActivo && sectorActivo.recibos && verGraficaConsumo) {
       const reciboConNotaReal = sectorActivo.recibos.find(r => {
@@ -243,7 +261,6 @@ const MapaBase = () => {
     }
   }, [sectorActivo, verGraficaConsumo]);
 
-  // Verificamos si el sector activo tiene alguna observación real (excluyendo "nuevo registro")
   const sectorTieneObservacionReal = useMemo(() => {
     if (!sectorActivo || !sectorActivo.recibos) return false;
     return sectorActivo.recibos.some(r => {
@@ -255,25 +272,47 @@ const MapaBase = () => {
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative', background: '#0b0f19', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}>
       
-      {/* SKELETON / SPINNER INDICADOR DE CARGA GLOBAL */}
+      {/* TARJETA DE CARGA ESTILO NETFLIX (REEMPLAZANDO AL SPINNER SIMPLE) */}
       {loadingGlobal && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(11, 15, 25, 0.85)', zIndex: 9999,
+          background: 'rgba(11, 15, 25, 0.9)', zIndex: 9999,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(6px)'
+          backdropFilter: 'blur(8px)'
         }}>
-          <div style={{ position: 'relative', width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{
-              position: 'absolute', width: '64px', height: '64px', border: '4px solid rgba(56, 189, 248, 0.2)',
-              borderTop: '4px solid #38bdf8', borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }}></div>
+          <div style={{ 
+            width: '100%', maxWidth: '400px', background: 'rgba(15, 23, 42, 0.95)', 
+            border: '1px solid rgba(190, 24, 93, 0.5)', padding: '35px', 
+            borderRadius: '24px', boxShadow: '0 20px 50px rgba(190,24,93,0.4)', 
+            boxSizing: 'border-box', textAlign: 'center' 
+          }}>
+            <h1 style={{ color: '#ffffff', fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 20px 0' }}>
+              SMART <span style={{ color: '#be185d' }}>PLAYA</span>
+            </h1>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#ffffff', marginBottom: '8px' }}>
+                <span>Cargando Mapa y Red...</span>
+                <span style={{ color: '#be185d' }}>{Math.min(progress, 100)}%</span>
+              </div>
+              <div style={{ width: '100%', background: '#222228', height: '10px', borderRadius: '9999px', overflow: 'hidden', padding: '2px', border: '1px solid rgba(190, 24, 93, 0.4)' }}>
+                <div 
+                  style={{ 
+                    background: '#be185d', 
+                    height: '100%', 
+                    borderRadius: '9999px', 
+                    width: `${Math.min(progress, 100)}%`,
+                    transition: 'width 0.15s ease-out',
+                    boxShadow: '0 0 15px #be185d'
+                  }}
+                />
+              </div>
+            </div>
+            
+            <p style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px', margin: 0 }}>
+              Geolocalización lista
+            </p>
           </div>
-          <p style={{ color: '#38bdf8', fontWeight: 800, fontSize: '14px', marginTop: '16px', letterSpacing: '0.05em' }}>
-            CARGANDO RED DE ALUMBRADO...
-          </p>
-          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         </div>
       )}
 
@@ -459,7 +498,6 @@ const MapaBase = () => {
         <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>3D POSTES</button>
         <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>GRÁFICA</button>
         
-        
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
           setSectorActivo(null); 
@@ -505,7 +543,6 @@ const MapaBase = () => {
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button onClick={() => { setMostrarCFE(!mostrarCFE); setMostrarObservacion(false); }} style={{ background: mostrarCFE ? '#059669' : 'rgba(5, 150, 105, 0.15)', color: mostrarCFE ? 'white' : '#34d399', border: '1px solid rgba(5, 150, 105, 0.4)', borderRadius: '8px', padding: '8px 14px', cursor: 'pointer', fontWeight: '900', fontSize: '11px' }}>CFE</button>
               
-              {/* Botón de información con animación de parpadeo lenta si tiene observación real */}
               <button 
                 onClick={() => { setMostrarObservacion(!mostrarObservacion); setMostrarCFE(false); }} 
                 className={sectorTieneObservacionReal ? 'btn-observacion-activa' : ''}

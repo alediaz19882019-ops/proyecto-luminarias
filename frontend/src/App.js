@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { AppProvider } from './AppContext'; // <--- Importamos el Proveedor Global
+import { AppProvider } from './AppContext'; // Proveedor Global
 import MapaBase from './MapaBase';
 import Manager from './Manager';
 import Censo from './Censo'; 
-import Login from './Login';
 import Home from './Home';
 import Dashboard from './Dashboard';
 import 'leaflet/dist/leaflet.css'; 
@@ -17,17 +16,9 @@ const COLORS = {
 const MainApp = () => {
   const [tab, setTab] = useState('home'); 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showRegisterMsg, setShowRegisterMsg] = useState(false);
-
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);   
-    setShowRegisterMsg(false);
-    setTab('mapaBase');   
-  };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setShowRegisterMsg(false);
     setTab('home');
   };
 
@@ -42,7 +33,7 @@ const MainApp = () => {
       fontFamily: 'Inter, sans-serif' 
     }}>
       
-      {/* Barra de navegación superior */}
+      {/* Barra de navegación superior (Solo aparece al entrar al sistema) */}
       {tab !== 'home' && isLoggedIn && (
         <nav style={{ 
           background: COLORS.primary, 
@@ -85,7 +76,7 @@ const MainApp = () => {
             {/* Icono de Salir Elegante */}
             <button 
               onClick={handleLogout} 
-              title="Cerrar sesión"
+              title="Cerrar sesión / Volver al inicio"
               style={{ 
                 background: 'transparent',
                 border: 'none',
@@ -115,94 +106,32 @@ const MainApp = () => {
         position: 'relative', 
         width: '100%',
         height: '100%',
-        overflowY: (tab === 'dashboard' || tab === 'manager' || tab === 'censo' || tab === 'captura' || tab === 'tracker') ? 'auto' : 'hidden' 
+        overflowY: (tab === 'dashboard' || tab === 'manager' || tab === 'censo') ? 'auto' : 'hidden' 
       }}>
       
+        {/* Pantalla Home limpia que al tocarla pasa directo al Mapa y activa la tarjeta de carga de Netflix en el Mapa Base */}
         {tab === 'home' && (
-          <Home onLogoClick={() => { setShowRegisterMsg(false); setTab('login'); }} />
+          <Home onLogoClick={() => { 
+            setIsLoggedIn(true); 
+            setTab('mapaBase'); 
+          }} />
         )}
         
-        {tab === 'login' && !showRegisterMsg && (
-          <Login 
-            onLoginSuccess={handleLoginSuccess} 
-            onRegisterClick={() => setShowRegisterMsg(true)} 
-            onGoHome={() => { setShowRegisterMsg(false); setTab('home'); }} 
-          />
-        )}
-
-        {/* Mensaje elegante de solicitud de registro */}
-        {showRegisterMsg && (
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            height: '100%', 
-            gap: '20px',
-            padding: '20px',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              background: 'white',
-              padding: '40px',
-              borderRadius: '12px',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-              maxWidth: '400px',
-              width: '100%',
-              borderTop: `4px solid ${COLORS.primary}`
-            }}>
-              <h3 style={{ color: COLORS.primary, margin: '0 0 10px 0', fontSize: '18px' }}>Solicitud de Registro</h3>
-              <p style={{ color: '#4b5563', fontSize: '14px', lineHeight: '1.5', margin: '0 0 25px 0' }}>
-                Para obtener una cuenta en el sistema, por favor <strong>contacte al administrador</strong> del área de Servicios Públicos.
-              </p>
-              <button 
-                onClick={() => { setShowRegisterMsg(false); setTab('home'); }}
-                style={{ 
-                  background: COLORS.primary, 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '12px 24px', 
-                  borderRadius: '6px', 
-                  cursor: 'pointer', 
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  width: '100%',
-                  transition: '0.2s'
-                }}
-              >
-                Volver al Inicio
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {/* Pestañas protegidas */}
-        {isLoggedIn && !showRegisterMsg ? (
+        {/* Pestañas protegidas del sistema */}
+        {isLoggedIn && tab !== 'home' ? (
           <>
             {tab === 'mapaBase' && <MapaBase />}
             {tab === 'dashboard' && <Dashboard />}
-            {tab === 'censo' && <Censo />}.  
+            {tab === 'censo' && <Censo />}
             {tab === 'manager' && <Manager />}
-           </>
-        ) : (
-          !isLoggedIn && tab !== 'home' && tab !== 'login' && !showRegisterMsg && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: '15px' }}>
-              <p style={{ fontWeight: 'bold', color: COLORS.primary }}>Acceso restringido. Por favor inicia sesión.</p>
-              <button 
-                onClick={() => setTab('login')}
-                style={{ background: COLORS.primary, color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Ir al Login
-              </button>
-            </div>
-          )
-        )}
+          </>
+        ) : null}
       </div>
     </div>
   );
 };
 
-// Envolvemos la aplicación principal con el AppProvider para centralizar la caché de datos
+// Envolvemos la aplicación principal con el AppProvider
 const App = () => {
   return (
     <AppProvider>

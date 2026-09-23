@@ -7,7 +7,7 @@ import {
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
 import { useApp } from './AppContext';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
+const API_URL = process.env.REACT_APP_API_URL || 'https://proy-alumbrado.duckdns.org/graphql';
 const ORDEN_MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 const Manager = () => {

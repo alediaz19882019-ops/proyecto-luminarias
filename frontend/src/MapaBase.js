@@ -62,13 +62,12 @@ const crearIconoSector = (isActive, sector, mesesOrden) => {
     return anioDiff !== 0 ? anioDiff : mesesOrden.indexOf(b.mes?.substring(0,3)) - mesesOrden.indexOf(a.mes?.substring(0,3));
   })[0];
 
-  const consumoUltimo = ultimoRecibo ? parseFloat(ultimoRecibo.consumoKwh) : 0;
+  const consumoUltimo = ultimoRecibo ? parseFloat(ultimoRecibo.consumoKwh) : (parseFloat(sector.ultimoConsumo) || 0);
   const limiteMax = parseFloat(sector.consumoMaximo) || 0;
   const esAlerta = consumoUltimo > limiteMax && limiteMax > 0;
 
   let color = '#3b82f6'; 
   if (esAlerta) color = '#ef4444'; 
-  else if (sector.clasificacion?.toUpperCase().includes("INMUEBLE")) color = '#f97316'; 
 
   const triClipPath = 'polygon(50% 0%, 0% 100%, 100% 100%)';
 
@@ -130,11 +129,10 @@ const crearIconoPoste3D = (luminariasPorPoste = 1) => {
 };
 
 const MapaBase = () => {
-  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal } = useApp();
+  const { todosLosSectores, cargarSectoresGlobal, obtenerSectorCompleto, setTodosLosSectores, loadingGlobal } = useApp();
   const [notificacion, setNotificacion] = useState(null);
   const [progress, setProgress] = useState(0);
 
-  // Efecto para animar el porcentaje de carga estilo Netflix al iniciar el mapa
   useEffect(() => {
     if (loadingGlobal) {
       setProgress(10);
@@ -157,13 +155,15 @@ const MapaBase = () => {
     setNotificacion({ mensaje, tipo });
     setTimeout(() => setNotificacion(null), 3500);
   };
+
   const [sectorActivo, setSectorActivo] = useState(null); 
   const [idsSectoresVisibles, setIdsSectoresVisibles] = useState([]); 
+  const [sectorEsperandoCierre, setSectorEsperandoCierre] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [coloniaFiltrada, setColoniaFiltrada] = useState(null);
   const [modoBusquedaIndividual, setModoBusquedaIndividual] = useState(false);
   const [verAlumbrado, setVerAlumbrado] = useState(true);
-  const [verInmuebles, setVerInmuebles] = useState(false);
+  const [verInmuebles, setVerInmuebles] = useState(true);
   const [soloAlertas, setSoloAlertas] = useState(false);
   const [soloBajasCfe, setSoloBajasCfe] = useState(false);
   const [verModo3D, setVerModo3D] = useState(false); 
@@ -193,12 +193,7 @@ const MapaBase = () => {
       const esInmueble = s.clasificacion?.toUpperCase().includes("INMUEBLE");
       const noTieneLuminarias = !s.luminarias || s.luminarias.length === 0;
 
-      const recibos = s.recibos || [];
-      const ultimoRecibo = [...recibos].sort((a, b) => {
-        const anioDiff = parseInt(b.anio) - parseInt(a.anio);
-        return anioDiff !== 0 ? anioDiff : mesesOrden.indexOf(b.mes?.substring(0,3)) - mesesOrden.indexOf(a.mes?.substring(0,3));
-      })[0];
-      const consumoUltimo = ultimoRecibo ? parseFloat(ultimoRecibo.consumoKwh) : 0;
+      const consumoUltimo = parseFloat(s.ultimoConsumo) || 0;
       const limiteMax = parseFloat(s.consumoMaximo) || 0;
       const esAlerta = consumoUltimo > limiteMax && limiteMax > 0;
 
@@ -216,7 +211,7 @@ const MapaBase = () => {
 
       return true;
     });
-  }, [todosLosSectores, verAlumbrado, verInmuebles, coloniaFiltrada, sectorActivo, modoBusquedaIndividual, soloAlertas, soloBajasCfe, mesesOrden]);
+  }, [todosLosSectores, verAlumbrado, verInmuebles, coloniaFiltrada, sectorActivo, modoBusquedaIndividual, soloAlertas, soloBajasCfe]);
 
   const chartData = useMemo(() => {
     if (!sectorActivo?.recibos) return [];
@@ -272,7 +267,6 @@ const MapaBase = () => {
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative', background: '#0b0f19', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}>
       
-      {/* TARJETA DE CARGA ESTILO NETFLIX (REEMPLAZANDO AL SPINNER SIMPLE) */}
       {loadingGlobal && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -316,7 +310,6 @@ const MapaBase = () => {
         </div>
       )}
 
-      {/* SISTEMA DE NOTIFICACIONES TOAST */}
       {notificacion && (
         <div style={{
           position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)',
@@ -329,23 +322,56 @@ const MapaBase = () => {
         </div>
       )}
 
-      {/* MAPA CONTENEDOR */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
          <MapContainer center={[20.628, -87.076]} zoom={13} zoomControl={false} style={{ height: '100%', width: '100%' }}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           <ActualizarMapa sector={sectorActivo} colonia={coloniaFiltrada} todos={todosLosSectores} />
           
           <Pane name="sectores" style={{ zIndex: 400 }}>
-            {sectoresMostrados.map(sec => (
-              <Marker key={sec.id} position={[parseFloat(sec.latitud), parseFloat(sec.longitud)]} icon={crearIconoSector(sectorActivo?.id === sec.id, sec, mesesOrden)} 
-                eventHandlers={{ click: () => { 
-                  setSectorActivo(sec); 
-                  setModoBusquedaIndividual(false); 
-                  setIdsSectoresVisibles(prev => prev.includes(sec.id) ? prev.filter(id => id !== sec.id) : [...prev, sec.id]);
-                  mostrarToast(`Sector ${sec.clave} seleccionado`, 'exito');
-                }}}>
-              </Marker>
-            ))}
+            {sectoresMostrados.map(sec => {
+              const luminariasAbiertas = idsSectoresVisibles.includes(sec.id);
+              return (
+                <Marker key={sec.id} position={[parseFloat(sec.latitud), parseFloat(sec.longitud)]} icon={crearIconoSector(sectorActivo?.id === sec.id, sec, mesesOrden)} 
+                  eventHandlers={{ click: async () => { 
+                    const esElMismoSector = sectorActivo?.id === sec.id;
+
+                    if (!luminariasAbiertas) {
+                      // Carga bajo demanda del detalle completo si no tiene luminarias o recibos
+                      let sectorAUsar = sec;
+                      if (!sec.luminarias || sec.luminarias.length === 0) {
+                        mostrarToast(`Cargando luminarias y recibos...`, 'info');
+                        const completo = await obtenerSectorCompleto(sec.id);
+                        if (completo) {
+                          sectorAUsar = completo;
+                          setTodosLosSectores(prev => prev.map(s => s.id === sec.id ? completo : s));
+                        }
+                      }
+
+                      setSectorActivo(sectorAUsar);
+                      setModoBusquedaIndividual(false);
+                      setIdsSectoresVisibles(prev => Array.from(new Set([...prev, sec.id])));
+                      setVerGraficaConsumo(false);
+                      setSectorEsperandoCierre(null);
+                      mostrarToast(`Sector ${sec.clave} agregado`, 'exito');
+                    } else if (esElMismoSector && sectorEsperandoCierre === sec.id) {
+                      setIdsSectoresVisibles(prev => prev.filter(id => id !== sec.id));
+                      if (sectorActivo?.id === sec.id) {
+                        setSectorActivo(null);
+                      }
+                      setVerGraficaConsumo(false);
+                      setSectorEsperandoCierre(null);
+                      mostrarToast(`Luminarias del sector ${sec.clave} cerradas`, 'info');
+                    } else if (esElMismoSector && !verGraficaConsumo) {
+                      setVerGraficaConsumo(true);
+                      setSectorEsperandoCierre(null);
+                    } else {
+                      setSectorActivo(sec);
+                      setModoBusquedaIndividual(false);
+                    }
+                  }}}>
+                </Marker>
+              );
+            })}
           </Pane>
 
           {todosLosSectores.filter(s => idsSectoresVisibles.includes(s.id)).map(s => 
@@ -453,14 +479,13 @@ const MapaBase = () => {
         }
       `}</style>
 
-      {/* BUSCADOR EN LA ESQUINA SUPERIOR IZQUIERDA */}
       <div className="buscador-container" style={{ position: 'absolute', top: 20, left: 20, zIndex: 1000, width: '250px' }}>
         <input type="text" placeholder="🔍 Clave, colonia o medidor..." value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setMostrarSugerencias(true); }}
           style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', outline: 'none', fontSize: '12px', fontWeight: '700', color: '#ffffff', boxSizing: 'border-box' }} />
         {sugerenciasFiltradas.length > 0 && (
           <div style={{ background: '#0f172a', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', boxShadow: '0 15px 30px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
             {sugerenciasFiltradas.map((sug, i) => (
-              <div key={i} onClick={() => { 
+              <div key={i} onClick={async () => { 
                 setBusqueda(sug.nombre); 
                 setMostrarSugerencias(false); 
                 if(sug.tipo==='COLONIA') {
@@ -470,7 +495,13 @@ const MapaBase = () => {
                   mostrarToast(`Filtro aplicado: ${sug.nombre}`, 'exito');
                 } else {
                   setColoniaFiltrada(null);
-                  setSectorActivo(sug.dato);
+                  // Carga bajo demanda si se busca por buscador individual
+                  let sectorAUsar = sug.dato;
+                  if (!sug.dato.luminarias || sug.dato.luminarias.length === 0) {
+                    const completo = await obtenerSectorCompleto(sug.dato.id);
+                    if (completo) sectorAUsar = completo;
+                  }
+                  setSectorActivo(sectorAUsar);
                   setModoBusquedaIndividual(true); 
                   setVerGraficaConsumo(false); 
                   setIdsSectoresVisibles([sug.dato.id]);
@@ -484,12 +515,10 @@ const MapaBase = () => {
         )}
       </div>
 
-      {/* BOTÓN DE MENÚ */}
       <button className={`btn-menu-estilizado ${menuAbierto ? 'activo' : ''}`} onClick={() => setMenuAbierto(!menuAbierto)}>
         {menuAbierto ? '✕ CERRAR' : '☰ MENÚ'}
       </button>
 
-      {/* MENÚ DESPLEGABLE VERTICAL */}
       <div className={`menu-desplegable-container ${menuAbierto ? 'abierto' : ''}`}>
         <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>ALUMBRADO</button>
         <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>INMUEBLES</button>
@@ -501,6 +530,7 @@ const MapaBase = () => {
         <button onClick={() => { 
           setIdsSectoresVisibles([]); 
           setSectorActivo(null); 
+          setSectorEsperandoCierre(null);
           setVerGraficaConsumo(false); 
           setBusqueda(""); 
           setColoniaFiltrada(null); 
@@ -515,7 +545,6 @@ const MapaBase = () => {
         <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
       </div>
 
-      {/* EFECTO DE FONDO OSCURECIDO Y DIFUMINADO (MODAL BACKDROP) CUANDO SE ABRE LA GRÁFICA */}
       {verGraficaConsumo && sectorActivo && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
@@ -524,7 +553,6 @@ const MapaBase = () => {
         }} onClick={() => setVerGraficaConsumo(false)} />
       )}
 
-      {/* TARJETA DE GRÁFICA CENTRADA AMPLIADA Y PROFESIONAL */}
       {verGraficaConsumo && sectorActivo && (
         <div 
           style={{ 
@@ -556,7 +584,12 @@ const MapaBase = () => {
                 {sectorTieneObservacionReal && '!'}
               </button>
 
-              <button onClick={() => setVerGraficaConsumo(false)} style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: 'none', borderRadius: '50%', width: '34px', height: '34px', cursor: 'pointer', fontWeight: '900', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={() => { 
+                if (sectorActivo) {
+                  setSectorEsperandoCierre(sectorActivo.id);
+                }
+                setVerGraficaConsumo(false); 
+              }} style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: 'none', borderRadius: '50%', width: '34px', height: '34px', cursor: 'pointer', fontWeight: '900', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
           </div>
 
@@ -588,7 +621,7 @@ const MapaBase = () => {
             </div>
           )}
 
-          <div style={{ height: '260px', marginTop: '18px', width: '100%' }}>
+          <div style={{ height: '260px', minHeight: '260px', marginTop: '18px', width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />

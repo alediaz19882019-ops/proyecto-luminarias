@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
+const API_URL = process.env.REACT_APP_API_URL || 'https://proy-alumbrado.duckdns.org/graphql';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
   const [todosLosSectores, setTodosLosSectores] = useState([]);
+  const [dashboardData, setDashboardData] = useState([]); 
   const [loadingGlobal, setLoadingGlobal] = useState(false);
+  const [loadingDashboard, setLoadingDashboard] = useState(false); 
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const fetchingRef = useRef(false);
 
-  // Función para limpiar credenciales y redirigir al login si expira la sesión
   const forzarReLogin = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
@@ -18,7 +19,6 @@ export const AppProvider = ({ children }) => {
     window.location.href = '/login';
   }, []);
 
-  // Función centralizada de API Fetch con interceptor de Unauthorized
   const apiFetch = useCallback(async (url, options = {}) => {
     const currentToken = localStorage.getItem('token') || token;
     
@@ -32,7 +32,6 @@ export const AppProvider = ({ children }) => {
       const response = await fetch(url, { ...options, headers });
       const data = await response.json();
 
-      // Detectar si el servidor rechaza por falta de autenticación
       if (response.status === 401 || (data.errors && data.errors.some(err => err.message === 'Unable to authenticate you' || err.id === 'Unauthorized'))) {
         forzarReLogin();
         return null;
@@ -53,10 +52,15 @@ export const AppProvider = ({ children }) => {
     setLoadingGlobal(true);
 
     const query = `{ 
-      todosLosSectores { 
-        id clave clasificacion latitud longitud consumoIdeal consumoAceptable consumoMaximo nombreColonia medidor cuenta carga cpd tarifa 
-        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones } 
-        luminarias { id latitud longitud luminariasPorPoste cantidadPostes tipoLampara capacidad descripcion } 
+      sectoresMapa { 
+        id 
+        clave 
+        clasificacion 
+        latitud 
+        longitud 
+        consumoMaximo 
+        nombreColonia 
+        ultimoConsumo 
       } 
     }`;
 
@@ -64,30 +68,93 @@ export const AppProvider = ({ children }) => {
       method: 'POST',
       body: JSON.stringify({ query })
     })
-      .then(data => {
+      .then(async data => {
+        if (data && data.data?.sectoresMapa) {
+          setTodosLosSectores(data.data.sectoresMapa);
+        }
         fetchingRef.current = false;
         setLoadingGlobal(false);
-        if (data && data.data?.todosLosSectores) {
-          const listaMapeada = data.data.todosLosSectores.map(sec => ({
-            ...sec,
-            luminarias: sec.luminarias?.map(lum => ({ 
-              ...lum, 
-              estadoAuditoria: lum.estadoAuditoria || 'pendiente',
-              observacion: lum.observacion || ''
-            })) || []
-          }));
-          setTodosLosSectores(listaMapeada);
-        }
       })
       .catch(err => {
         fetchingRef.current = false;
         setLoadingGlobal(false);
-        console.error("Error cargando datos globales:", err);
+        console.error("Error cargando sectores del mapa:", err);
       });
   }, [todosLosSectores.length, apiFetch]);
 
+  // CORREGIDO: Se permite la consulta al cambiar de año sin bloqueos por longitud previa
+  const cargarDashboardResumen = useCallback(async (anioConsulta = 2026, forzar = false) => {
+    setLoadingDashboard(true);
+
+    const query = `query {
+      dashboardResumen(anio: ${anioConsulta}) {
+        mes
+        anio
+        alumPago
+        inmPago
+        alumKwh
+        inmKwh
+      }
+    }`;
+
+    try {
+      const data = await apiFetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ query })
+      });
+      if (data && data.data?.dashboardResumen) {
+        setDashboardData(data.data.dashboardResumen);
+      } else {
+        setDashboardData([]);
+      }
+    } catch (err) {
+      console.error("Error al cargar el resumen del dashboard:", err);
+      setDashboardData([]);
+    } finally {
+      setLoadingDashboard(false);
+    }
+  }, [apiFetch]);
+
+  const obtenerSectorCompleto = useCallback(async (id) => {
+    const query = `query {
+      sectorPorId(id: ${id}) {
+        id clave clasificacion nombreColonia latitud longitud 
+        consumoIdeal consumoAceptable consumoMaximo medidor cuenta carga cpd tarifa
+        recibos { id anio mes consumoKwh importe lecturaAnterior lecturaActual notasObservaciones }
+        luminarias { id latitud longitud luminariasPorPoste cantidadPostes tipoLampara capacidad descripcion }
+      }
+    }`;
+
+    try {
+      const data = await apiFetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ query })
+      });
+      if (data && data.data?.sectorPorId) {
+        return data.data.sectorPorId;
+      }
+      return null;
+    } catch (err) {
+      console.error("Error obteniendo sector completo:", err);
+      return null;
+    }
+  }, [apiFetch]);
+
   return (
-    <AppContext.Provider value={{ todosLosSectores, cargarSectoresGlobal, loadingGlobal, setTodosLosSectores, token, setToken, apiFetch, forzarReLogin }}> 
+    <AppContext.Provider value={{ 
+      todosLosSectores, 
+      cargarSectoresGlobal, 
+      dashboardData, 
+      cargarDashboardResumen, 
+      obtenerSectorCompleto, 
+      loadingGlobal, 
+      loadingDashboard,
+      setTodosLosSectores, 
+      token, 
+      setToken, 
+      apiFetch, 
+      forzarReLogin 
+    }}> 
       {children}
     </AppContext.Provider>
   );

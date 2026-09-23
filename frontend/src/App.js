@@ -33,7 +33,7 @@ const MainApp = () => {
       fontFamily: 'Inter, sans-serif' 
     }}>
       
-      {/* Barra de navegación superior (Solo aparece al entrar al sistema) */}
+      {/* Barra de navegación superior original para computadora */}
       {tab !== 'home' && isLoggedIn && (
         <nav style={{ 
           background: COLORS.primary, 
@@ -109,7 +109,7 @@ const MainApp = () => {
         overflowY: (tab === 'dashboard' || tab === 'manager' || tab === 'censo') ? 'auto' : 'hidden' 
       }}>
       
-        {/* Pantalla Home limpia que al tocarla pasa directo al Mapa y activa la tarjeta de carga de Netflix en el Mapa Base */}
+        {/* Pantalla Home limpia */}
         {tab === 'home' && (
           <Home onLogoClick={() => { 
             setIsLoggedIn(true); 

@@ -4,22 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     
-    <!-- Política de Seguridad (CSP) ajustada para permitir tu imagen, recursos y el servidor backend -->
+    <!-- Política de Seguridad (CSP) original -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com;
       style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com;
       img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com %PUBLIC_URL%/static/uploads/;
-      connect-src 'self' http://localhost:8085 http://134.209.65.153:8085;
+      connect-src 'self' http://localhost:8085 http://134.209.65.153:8085 https://proy-alumbrado.duckdns.org;
     ">
     
     <title>Smart Lighting Playa</title>
 
-    <!-- Iconos Oficiales para Navegadores, Celulares y Tablets -->
+    <!-- Iconos Oficiales -->
     <link rel="icon" href="%PUBLIC_URL%/static/uploads/alejo.jpeg?v=2" type="image/jpeg" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/static/uploads/alejo.jpeg?v=2" />
 
-    <!-- Archivo Manifest para la app en Celular/Tablet -->
+    <!-- Archivo Manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
     <!-- Tailwind CSS desde CDN -->

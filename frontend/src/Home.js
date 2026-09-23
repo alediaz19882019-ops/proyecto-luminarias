@@ -43,11 +43,11 @@ const Home = ({ onLogoClick }) => {
         {/* Degradado superior e inferior para contraste */}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black pointer-events-none opacity-60"></div>
 
-        {/* Botón flotante de llamada a la acción */}
-        <div className="absolute bottom-16 w-full text-center px-4 z-10">
-          <div className="inline-block bg-black/80 backdrop-blur-md border border-[#be185d]/50 px-6 py-3 rounded-2xl shadow-[0_10px_30px_rgba(190,24,93,0.3)] animate-bounce">
-            <p className="text-white text-xs sm:text-sm font-black uppercase tracking-[0.2em]">
-              Toca la pantalla o haz <span className="text-[#be185d]">clic</span> para entrar
+        {/* Botón flotante reubicado y rediseñado profesionalmente */}
+        <div className="absolute bottom-6 sm:bottom-8 w-full text-center px-4 z-10 pointer-events-none">
+          <div className="inline-block bg-black/75 backdrop-blur-md border border-[#be185d]/40 px-5 py-2.5 sm:px-6 sm:py-3 rounded-full shadow-[0_8px_25px_rgba(190,24,93,0.25)] transition-all duration-300 hover:scale-105">
+            <p className="text-zinc-200 text-[11px] sm:text-xs font-semibold uppercase tracking-[0.25em]">
+              Toca la pantalla o haz <span className="text-[#be185d] font-bold">clic</span> para entrar
             </p>
           </div>
         </div>

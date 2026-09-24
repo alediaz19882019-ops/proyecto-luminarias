@@ -18,7 +18,7 @@ def recalcular_consumos_sector(db, sector_id: int):
                 cap = float(lum.capacidad or 0)
             except ValueError:
                 cap = 0.0
-            
+             
             postes = int(lum.cantidad_postes or 1)
             por_poste = int(lum.luminarias_por_poste or 1)
             potencia_total_watts += (cap * postes * por_poste)
@@ -94,6 +94,15 @@ class SectorMapaType:
     ultimoConsumo: float
 
 @strawberry.type
+class DashboardResumenType:
+    mes: str
+    anio: int
+    alumPago: float
+    inmPago: float
+    alumKwh: float
+    inmKwh: float
+
+@strawberry.type
 class AuthResponse:
     success: bool
     rol: Optional[str] = ""
@@ -103,7 +112,8 @@ class AuthResponse:
 
 @strawberry.input
 class ReciboInput:
-    sectorId: int
+    sectorId: Optional[int] = None
+    clave: Optional[str] = None
     mes: str
     anio: int
     lecturaAnterior: float
@@ -111,6 +121,7 @@ class ReciboInput:
     consumoKwh: Optional[float] = 0.0
     importeRecibo: Optional[float] = 0.0
     notasObservaciones: Optional[str] = ""
+    tipoServicio: Optional[str] = None
 
 @strawberry.input
 class SectorLimitsInput:
@@ -175,13 +186,13 @@ class Query:
             user_db = db.query(models.Usuario).filter(models.Usuario.usuario == usuario).first()
             if not user_db:
                 return AuthResponse(success=False, rol="", usuario="")
-            
+             
             if user_db.password == password:
                 return AuthResponse(success=True, rol=user_db.rol, usuario=user_db.usuario)
             return AuthResponse(success=False, rol="", usuario="")
         finally:
             db.close()
-            
+             
     @strawberry.field
     def recibosConsolidados(self, anio: int) -> List[Recibo]:
         db = SessionLocal()
@@ -189,7 +200,7 @@ class Query:
             recibos = db.query(models.ReciboMensual).filter(
                 models.ReciboMensual.anio == anio
             ).all()
-            
+             
             return [Recibo(
                 id=strawberry.ID(f"con_{r.id}"),
                 mes=r.mes.strip().capitalize() if r.mes else "S/M",
@@ -212,7 +223,7 @@ class Query:
                 joinedload(models.Sector.colonia),
                 selectinload(models.Sector.recibos_detallados)
             ).execution_options(populate_existing=True).all()
-            
+             
             resultado = []
             for s in sectores:
                 ultimo_recibo = s.recibos_detallados[-1] if s.recibos_detallados else None
@@ -244,7 +255,7 @@ class Query:
             ).first()
             if not s:
                 return None
-            
+             
             meses_orden = {
                 "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
                 "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
@@ -318,7 +329,7 @@ class Query:
                 selectinload(models.Sector.recibos_mensuales),
                 selectinload(models.Sector.luminarias)
             ).execution_options(populate_existing=True).all()
-            
+             
             meses_orden = {
                 "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
                 "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
@@ -352,14 +363,12 @@ class Query:
                         notasObservaciones=r.notas_observaciones or "Dato Histórico"
                     ))
 
-                # --- FILTRAR POR MES Y AÑO SI SE PROPORCIONAN ---
                 if mes:
                     mes_limpio = mes.strip().capitalize()
                     lista_recibos_unificada = [r for r in lista_recibos_unificada if r.mes == mes_limpio]
                 if anio:
                     lista_recibos_unificada = [r for r in lista_recibos_unificada if r.anio == anio]
 
-                # --- EXCLUIR SECTORES SIN RECIBOS PARA EL PERIODO FILTRADO ---
                 if (mes or anio) and not lista_recibos_unificada:
                     continue
 
@@ -396,6 +405,38 @@ class Query:
         finally:
             db.close()
 
+    @strawberry.field
+    def dashboardResumen(self, anio: int) -> List[DashboardResumenType]:
+        db = SessionLocal()
+        try:
+            recibos = db.query(models.ReciboMensual).filter(models.ReciboMensual.anio == anio).all()
+            
+            meses_map = {}
+            for r in recibos:
+                m = r.mes.strip().capitalize() if r.mes else "Enero"
+                if m not in meses_map:
+                    meses_map[m] = {"alumPago": 0.0, "inmPago": 0.0, "alumKwh": 0.0, "inmKwh": 0.0}
+                
+                if r.tipo_servicio and "INMUEBLE" in r.tipo_servicio.upper():
+                    meses_map[m]["inmPago"] += float(r.importe_recibo or 0)
+                    meses_map[m]["inmKwh"] += float(r.consumo_kwh or 0)
+                else:
+                    meses_map[m]["alumPago"] += float(r.importe_recibo or 0)
+                    meses_map[m]["alumKwh"] += float(r.consumo_kwh or 0)
+
+            return [
+                DashboardResumenType(
+                    mes=mes,
+                    anio=anio,
+                    alumPago=vals["alumPago"],
+                    inmPago=vals["inmPago"],
+                    alumKwh=vals["alumKwh"],
+                    inmKwh=vals["inmKwh"]
+                ) for mes, vals in meses_map.items()
+            ]
+        finally:
+            db.close()
+
 # --- 4. ACTUALIZACIONES (MUTATIONS) ---
 
 @strawberry.type
@@ -428,7 +469,7 @@ class Mutation:
             db.add(nuevo_sec)
             db.commit()
             db.refresh(nuevo_sec)
-            
+             
             return SectorType(
                 id=strawberry.ID(str(nuevo_sec.id)),
                 clave=nuevo_sec.clave,
@@ -486,12 +527,12 @@ class Mutation:
             )
             db.add(nueva_lum)
             db.flush()
-            
+             
             recalcular_consumos_sector(db, input.sectorId)
 
             db.commit()
             db.refresh(nueva_lum)
-            
+             
             return LuminariaType(
                 id=strawberry.ID(str(nueva_lum.id)),
                 latitud=float(nueva_lum.latitud),
@@ -514,7 +555,7 @@ class Mutation:
         try:
             lum_id = str(input.id).replace("lum-", "")
             luminaria = db.query(models.Luminaria).filter(models.Luminaria.id == lum_id).first()
-            
+             
             if not luminaria:
                 raise Exception("Luminaria no encontrada en la base de datos")
 
@@ -529,7 +570,7 @@ class Mutation:
 
             db.commit()
             db.refresh(luminaria)
-            
+             
             return LuminariaType(
                 id=strawberry.ID(str(luminaria.id)),
                 latitud=float(luminaria.latitud),
@@ -556,7 +597,7 @@ class Mutation:
                 sector_id = luminaria.sector_id
                 db.delete(luminaria)
                 db.flush()
-                
+                 
                 recalcular_consumos_sector(db, sector_id)
 
                 db.commit()
@@ -588,7 +629,7 @@ class Mutation:
                 )
                 db.add(nueva_lum)
                 resultados.append(nueva_lum)
-            
+             
             db.flush()
             if sector_afectado_id:
                 recalcular_consumos_sector(db, sector_afectado_id)
@@ -639,7 +680,7 @@ class Mutation:
 
             db.commit()
             db.refresh(recibo)
-            
+             
             return Recibo(
                 id=strawberry.ID(str(recibo.id)),
                 mes=recibo.mes,

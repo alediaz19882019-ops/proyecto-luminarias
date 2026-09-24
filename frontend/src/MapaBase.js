@@ -336,7 +336,6 @@ const MapaBase = () => {
                     const esElMismoSector = sectorActivo?.id === sec.id;
 
                     if (!luminariasAbiertas) {
-                      // Carga bajo demanda del detalle completo si no tiene luminarias o recibos
                       let sectorAUsar = sec;
                       if (!sec.luminarias || sec.luminarias.length === 0) {
                         mostrarToast(`Cargando luminarias y recibos...`, 'info');
@@ -495,17 +494,21 @@ const MapaBase = () => {
                   mostrarToast(`Filtro aplicado: ${sug.nombre}`, 'exito');
                 } else {
                   setColoniaFiltrada(null);
-                  // Carga bajo demanda si se busca por buscador individual
-                  let sectorAUsar = sug.dato;
-                  if (!sug.dato.luminarias || sug.dato.luminarias.length === 0) {
-                    const completo = await obtenerSectorCompleto(sug.dato.id);
-                    if (completo) sectorAUsar = completo;
-                  }
+                  mostrarToast(`Cargando sector ${sug.dato.clave} y luminarias...`, 'info');
+                  
+                  // CARGA BAJO DEMANDA Y ACTUALIZACIÓN GLOBAL PARA MOSTRAR LUMINARIAS
+                  const completo = await obtenerSectorCompleto(sug.dato.id);
+                  const sectorAUsar = completo || sug.dato;
+
+                  setTodosLosSectores(prev => 
+                    prev.map(s => String(s.id) === String(sectorAUsar.id) ? { ...s, ...sectorAUsar } : s)
+                  );
+
                   setSectorActivo(sectorAUsar);
                   setModoBusquedaIndividual(true); 
                   setVerGraficaConsumo(false); 
-                  setIdsSectoresVisibles([sug.dato.id]);
-                  mostrarToast(`Sector ${sug.dato.clave} enfocado`, 'exito');
+                  setIdsSectoresVisibles([String(sectorAUsar.id)]);
+                  mostrarToast(`Sector ${sectorAUsar.clave} cargado con éxito`, 'exito');
                 }
               }} style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: '700', color: '#f8fafc' }}>
                 {sug.tipo === 'COLONIA' ? '📍' : '⚡'} {sug.nombre}

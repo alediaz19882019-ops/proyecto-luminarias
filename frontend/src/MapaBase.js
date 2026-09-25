@@ -480,7 +480,7 @@ const MapaBase = () => {
 
       <div className="buscador-container" style={{ position: 'absolute', top: 20, left: 20, zIndex: 1000, width: '250px' }}>
         <input type="text" placeholder="🔍 Clave, colonia o medidor..." value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setMostrarSugerencias(true); }}
-          style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', outline: 'none', fontSize: '12px', fontWeight: '700', color: '#ffffff', boxSizing: 'border-box' }} />
+          style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', outline: 'none', fontSize: '16px', fontWeight: '700', color: '#ffffff', boxSizing: 'border-box' }} />
         {sugerenciasFiltradas.length > 0 && (
           <div style={{ background: '#0f172a', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', boxShadow: '0 15px 30px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
             {sugerenciasFiltradas.map((sug, i) => (

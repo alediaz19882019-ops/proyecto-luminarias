@@ -405,149 +405,236 @@ const MapaBase = () => {
         </MapContainer>
       </div>
 
-      <style>{`
-        @keyframes parpadeoLentoBoton {
-          0% { opacity: 0.4; transform: scale(0.98); }
-          50% { opacity: 1; transform: scale(1.08); box-shadow: 0 0 16px #fbbf24; }
-          100% { opacity: 0.4; transform: scale(0.98); }
-        }
+    <style>{`
+  @keyframes parpadeoLentoBoton {
+    0% { opacity: 0.4; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1.08); box-shadow: 0 0 16px #fbbf24; }
+    100% { opacity: 0.4; transform: scale(0.98); }
+  }
 
-        .btn-observacion-activa {
-          animation: parpadeoLentoBoton 2.2s ease-in-out infinite;
-        }
+  .btn-observacion-activa {
+    animation: parpadeoLentoBoton 2.2s ease-in-out infinite;
+  }
 
-        .leaflet-tooltip.tooltip-sin-fondo, .leaflet-popup-content-wrapper {
-          background: transparent !important;
-          border: none !important;
-          box-shadow: none !important;
-        }
-        .leaflet-tooltip.tooltip-sin-fondo::before {
-          display: none !important;
-        }
+  .leaflet-tooltip.tooltip-sin-fondo, .leaflet-popup-content-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .leaflet-tooltip.tooltip-sin-fondo::before {
+    display: none !important;
+  }
 
-        .btn-menu-estilizado {
-          position: absolute;
-          top: 20px;
-          right: 20px;
-          z-index: 6000;
-          background: #1e293b;
-          color: #ffffff;
-          border: 2px solid #000000;
-          padding: 10px 0px;
-          width: 140px;
-          text-align: center;
-          border-radius: 50px;
-          cursor: pointer;
-          font-weight: 900;
-          font-size: 12px;
-          box-shadow: 0 6px 16px rgba(0,0,0,0.6);
-          transition: all 0.2s;
-        }
-        .btn-menu-estilizado:hover, .btn-menu-estilizado.activo {
-          background: #38bdf8;
-          color: #0f172a;
-        }
+  /* ESTILO PEARL BUTTON EN NEGRO SÓLIDO (SIN CENTROS GRISES) */
+  .pearl-button-base {
+    background-color: #0b0f19 !important;
+    border-radius: 100px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 
+      inset 0 1px 2px rgba(255, 255, 255, 0.15),
+      0 8px 20px rgba(0, 0, 0, 0.6);
+    transition: all 0.2s ease;
+  }
 
-        .menu-desplegable-container {
-          display: none;
-          position: absolute;
-          top: 70px;
-          right: 20px;
-          z-index: 5999;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .menu-desplegable-container.abierto {
-          display: flex;
-        }
+  .pearl-button-base:hover {
+    background-color: #111827 !important;
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 
+      inset 0 1px 3px rgba(255, 255, 255, 0.25),
+      0 10px 22px rgba(0, 0, 0, 0.7);
+  }
 
-        .menu-desplegable-container button:hover,
-        .menu-desplegable-container select:hover {
-          filter: brightness(1.25);
-          transform: scale(1.02);
-        }
+  .pearl-button-base:active {
+    transform: translateY(2px);
+  }
 
-        @media (max-width: 480px) {
-          .buscador-container {
-            width: calc(100vw - 180px) !important;
-            max-width: 220px !important;
+  /* BRILLO SUTIL ÚNICAMENTE EN EL BORDE SUPERIOR */
+  .pearl-wrap {
+    padding: 10px 16px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .pearl-wrap::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 15%;
+    right: 15%;
+    height: 35%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 100%);
+    border-radius: 100px 100px 0 0;
+    pointer-events: none;
+  }
+
+  /* POSICIONAMIENTO */
+  .btn-menu-estilizado {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 6000;
+    width: 130px;
+  }
+
+  .buscador-container {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1000;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .menu-desplegable-container {
+    display: none;
+    position: absolute;
+    top: 60px;
+    right: 12px;
+    z-index: 5999;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .menu-desplegable-container.abierto {
+    display: flex;
+  }
+
+  .btn-submenu-3d {
+    width: 140px;
+  }
+
+  @media (max-width: 480px) {
+    .buscador-container {
+      width: calc(100vw - 150px) !important;
+      max-width: 200px !important;
+    }
+    .btn-menu-estilizado {
+      width: 110px !important;
+    }
+    .btn-submenu-3d {
+      width: 130px !important;
+    }
+  }
+`}</style>
+  <div className="buscador-container" style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 1000, width: '320px', maxWidth: 'calc(100vw - 24px)' }}>
+  <div className="pearl-button-base" style={{ width: '100%' }}>
+    <div className="pearl-wrap" style={{ padding: '4px 12px' }}>
+      <input 
+        type="text" 
+        placeholder="🔍 Clave, colonia o medidor..." 
+        value={busqueda} 
+        onChange={(e) => { setBusqueda(e.target.value); setMostrarSugerencias(true); }}
+        style={{ 
+          width: '100%', 
+          background: 'transparent', 
+          border: 'none', 
+          outline: 'none', 
+          fontSize: '16px', 
+          fontWeight: '700', 
+          color: '#ffffff', 
+          boxSizing: 'border-box',
+          zIndex: 2,
+          position: 'relative',
+          padding: '6px 0'
+        }}  
+      />
+    </div>
+  </div>
+
+  {sugerenciasFiltradas.length > 0 && (
+    <div style={{ background: '#080808', borderRadius: '16px', marginTop: '6px', overflow: 'hidden', boxShadow: '0 15px 30px rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      {sugerenciasFiltradas.map((sug, i) => (
+        <div key={i} onClick={async () => { 
+          setBusqueda(sug.nombre); 
+          setMostrarSugerencias(false); 
+          if(sug.tipo==='COLONIA') {
+            setColoniaFiltrada(sug.nombre);
+            setSectorActivo(null);
+            setModoBusquedaIndividual(false);
+            mostrarToast(`Filtro aplicado: ${sug.nombre}`, 'exito');
+          } else {
+            setColoniaFiltrada(null);
+            mostrarToast(`Cargando sector ${sug.dato.clave} y luminarias...`, 'info');
+            
+            // CARGA BAJO DEMANDA Y ACTUALIZACIÓN GLOBAL PARA MOSTRAR LUMINARIAS
+            const completo = await obtenerSectorCompleto(sug.dato.id);
+            const sectorAUsar = completo || sug.dato;
+
+            setTodosLosSectores(prev => 
+              prev.map(s => String(s.id) === String(sectorAUsar.id) ? { ...s, ...sectorAUsar } : s)
+            );
+
+            setSectorActivo(sectorAUsar);
+            setModoBusquedaIndividual(true); 
+            setVerGraficaConsumo(false); 
+            setIdsSectoresVisibles([String(sectorAUsar.id)]);
+            mostrarToast(`Sector ${sectorAUsar.clave} cargado con éxito`, 'exito');
           }
-          .btn-menu-estilizado {
-            width: 120px !important;
-          }
-        }
-      `}</style>
+        }} style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: '700', color: '#f8fafc' }}>
+          {sug.tipo === 'COLONIA' ? '📍' : '⚡'} {sug.nombre}
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
-      <div className="buscador-container" style={{ position: 'absolute', top: 20, left: 20, zIndex: 1000, width: '250px' }}>
-        <input type="text" placeholder="🔍 Clave, colonia o medidor..." value={busqueda} onChange={(e) => { setBusqueda(e.target.value); setMostrarSugerencias(true); }}
-          style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(15, 23, 42, 0.9)', backdropFilter: 'blur(8px)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)', outline: 'none', fontSize: '16px', fontWeight: '700', color: '#ffffff', boxSizing: 'border-box' }} />
-        {sugerenciasFiltradas.length > 0 && (
-          <div style={{ background: '#0f172a', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', boxShadow: '0 15px 30px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            {sugerenciasFiltradas.map((sug, i) => (
-              <div key={i} onClick={async () => { 
-                setBusqueda(sug.nombre); 
-                setMostrarSugerencias(false); 
-                if(sug.tipo==='COLONIA') {
-                  setColoniaFiltrada(sug.nombre);
-                  setSectorActivo(null);
-                  setModoBusquedaIndividual(false);
-                  mostrarToast(`Filtro aplicado: ${sug.nombre}`, 'exito');
-                } else {
-                  setColoniaFiltrada(null);
-                  mostrarToast(`Cargando sector ${sug.dato.clave} y luminarias...`, 'info');
-                  
-                  // CARGA BAJO DEMANDA Y ACTUALIZACIÓN GLOBAL PARA MOSTRAR LUMINARIAS
-                  const completo = await obtenerSectorCompleto(sug.dato.id);
-                  const sectorAUsar = completo || sug.dato;
+<button 
+  className={`pearl-button-base btn-menu-estilizado ${menuAbierto ? 'activo' : ''}`}
+  onClick={() => setMenuAbierto(!menuAbierto)}
+>
+  <div className="pearl-wrap">
+    <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '12px', fontWeight: '900', zIndex: 2, position: 'relative' }}>☰ MENÚ</span>
+  </div>
+</button>
 
-                  setTodosLosSectores(prev => 
-                    prev.map(s => String(s.id) === String(sectorAUsar.id) ? { ...s, ...sectorAUsar } : s)
-                  );
-
-                  setSectorActivo(sectorAUsar);
-                  setModoBusquedaIndividual(true); 
-                  setVerGraficaConsumo(false); 
-                  setIdsSectoresVisibles([String(sectorAUsar.id)]);
-                  mostrarToast(`Sector ${sectorAUsar.clave} cargado con éxito`, 'exito');
-                }
-              }} style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: '700', color: '#f8fafc' }}>
-                {sug.tipo === 'COLONIA' ? '📍' : '⚡'} {sug.nombre}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <button className={`btn-menu-estilizado ${menuAbierto ? 'activo' : ''}`} onClick={() => setMenuAbierto(!menuAbierto)}>
-        {menuAbierto ? '✕ CERRAR' : '☰ MENÚ'}
-      </button>
-
-      <div className={`menu-desplegable-container ${menuAbierto ? 'abierto' : ''}`}>
-        <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); mostrarToast(`Alumbrado ${!verAlumbrado ? 'activado' : 'oculto'}`); }} style={{ background: verAlumbrado ? '#3b82f6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>ALUMBRADO</button>
-        <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); mostrarToast(`Inmuebles ${!verInmuebles ? 'activados' : 'ocultos'}`); }} style={{ background: verInmuebles ? '#f97316' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>INMUEBLES</button>
-        <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); mostrarToast(`Filtro Alertas ${!soloAlertas ? 'activado' : 'desactivado'}`); }} style={{ background: soloAlertas ? '#ef4444' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>ALERTAS</button>
-        <button onClick={() => { setSoloBajasCfe(!soloBajasCfe); setMenuAbierto(false); mostrarToast(`Filtro Bajas CFE ${!soloBajasCfe ? 'activado' : 'desactivado'}`); }} style={{ background: soloBajasCfe ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>BAJAS CFE</button>
-        <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); mostrarToast(`Modo 3D Postes ${!verModo3D ? 'activado' : 'desactivado'}`); }} style={{ background: verModo3D ? '#8b5cf6' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>3D POSTES</button>
-        <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} style={{ background: verGraficaConsumo ? '#06b6d4' : '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>GRÁFICA</button>
-        
-        <button onClick={() => { 
-          setIdsSectoresVisibles([]); 
-          setSectorActivo(null); 
-          setSectorEsperandoCierre(null);
-          setVerGraficaConsumo(false); 
-          setBusqueda(""); 
-          setColoniaFiltrada(null); 
-          setModoBusquedaIndividual(false); 
-          setSoloAlertas(false); 
-          setSoloBajasCfe(false);
-          setVerModo3D(false);
-          setMenuAbierto(false);
-          mostrarToast('Mapa limpiado', 'exito');
-        }} style={{ background: '#dc2626', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', cursor: 'pointer', fontWeight: 900, fontSize: '12px', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>CLEAN</button>
-        
-        <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); mostrarToast(`Año actualizado a ${e.target.value}`, 'exito'); }} style={{ background: '#1e293b', color: '#ffffff', border: '2px solid #000000', padding: '10px 0px', borderRadius: '50px', fontWeight: 900, fontSize: '12px', outline: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(0,0,0,0.6)', width: '140px', textAlign: 'center', transition: 'all 0.2s' }}>{[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}</select>
-      </div>
-
+<div className={`menu-desplegable-container ${menuAbierto ? 'abierto' : ''}`}>
+  <button onClick={() => { setVerAlumbrado(!verAlumbrado); setMenuAbierto(false); }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: verAlumbrado ? '4px solid #3b82f6' : 'none' }}>
+    <div className="pearl-wrap"><span style={{ color: '#fff', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>ALUMBRADO</span></div>
+  </button>
+  
+  <button onClick={() => { setVerInmuebles(!verInmuebles); setMenuAbierto(false); }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: verInmuebles ? '4px solid #f97316' : 'none' }}>
+    <div className="pearl-wrap"><span style={{ color: '#fff', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>INMUEBLES</span></div>
+  </button>
+  
+  <button onClick={() => { setSoloAlertas(!soloAlertas); setMenuAbierto(false); }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: soloAlertas ? '4px solid #ef4444' : 'none' }}>
+  <div className="pearl-wrap"><span style={{ color: '#fff', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>ALERTAS</span></div>
+</button>
+  
+  <button onClick={() => { setSoloBajasCfe(!soloBajasCfe); setMenuAbierto(false); }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: soloBajasCfe ? '4px solid #8b5cf6' : 'none' }}>
+    <div className="pearl-wrap"><span style={{ color: '#fff', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>BAJAS CFE</span></div>
+  </button>
+  
+  <button onClick={() => { setVerModo3D(!verModo3D); setMenuAbierto(false); }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: verModo3D ? '4px solid #8b5cf6' : 'none' }}>
+    <div className="pearl-wrap"><span style={{ color: '#fff', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>3D POSTES</span></div>
+  </button>
+  
+  <button onClick={() => { if(sectorActivo) { setVerGraficaConsumo(!verGraficaConsumo); setMostrarCFE(false); setMostrarObservacion(false); } else { mostrarToast('Selecciona un sector primero', 'error'); } setMenuAbierto(false); }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: verGraficaConsumo ? '4px solid #06b6d4' : 'none' }}>
+    <div className="pearl-wrap"><span style={{ color: '#fff', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>GRÁFICA</span></div>
+  </button>
+  
+  <button onClick={() => { 
+    setIdsSectoresVisibles([]); setSectorActivo(null); setSectorEsperandoCierre(null);
+    setVerGraficaConsumo(false); setBusqueda(""); setColoniaFiltrada(null); 
+    setModoBusquedaIndividual(false); setSoloAlertas(false); setSoloBajasCfe(false);
+    setVerModo3D(false); setMenuAbierto(false);
+  }} className="pearl-button-base btn-submenu-3d" style={{ borderLeft: '4px solid #ef4444' }}>
+    <div className="pearl-wrap"><span style={{ color: '#f87171', fontSize: '11px', fontWeight: '900', zIndex: 2, position: 'relative' }}>CLEAN</span></div>
+  </button>
+  
+  <div className="pearl-button-base btn-submenu-3d" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="pearl-wrap" style={{ width: '100%', padding: '4px 0' }}>
+      <select value={anioSeleccionado} onChange={(e) => { setAnioSeleccionado(parseInt(e.target.value)); setMenuAbierto(false); }} style={{ background: 'transparent', color: '#ffffff', border: 'none', padding: '6px 0', fontWeight: 900, fontSize: '11px', outline: 'none', cursor: 'pointer', width: '100%', textAlign: 'center', zIndex: 2, position: 'relative' }}>
+        {[2024, 2025, 2026, 2027].map(anio => <option key={anio} value={anio} style={{ color: '#000' }}>{anio}</option>)}
+      </select>
+    </div>
+  </div>
+</div>
       {verGraficaConsumo && sectorActivo && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',

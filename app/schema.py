@@ -203,7 +203,7 @@ class Query:
              
             return [Recibo(
                 id=strawberry.ID(f"con_{r.id}"),
-                mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                mes=r.mes.strip() if r.mes else "Ene",
                 anio=r.anio,
                 consumoKwh=float(r.consumo_kwh or 0.0),
                 lecturaAnterior=float(getattr(r, 'lectura_anterior', 0.0) or 0.0),
@@ -256,16 +256,14 @@ class Query:
             if not s:
                 return None
              
-            meses_orden = {
-                "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
-                "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-            }
+            meses_orden_3letras = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            mes_orden_map = {m: i for i, m in enumerate(meses_orden_3letras)}
 
             lista_recibos_unificada = []
             for r in s.recibos_detallados:
                 lista_recibos_unificada.append(Recibo(
                     id=strawberry.ID(f"det_{r.id}"),
-                    mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                    mes=r.mes.strip() if r.mes else "Ene",
                     anio=r.anio,
                     consumoKwh=float(r.consumo_kwh or 0.0),
                     lecturaAnterior=float(r.lectura_anterior or 0.0),
@@ -277,7 +275,7 @@ class Query:
             for r in s.recibos_mensuales:
                 lista_recibos_unificada.append(Recibo(
                     id=strawberry.ID(f"men_{r.id}"),
-                    mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                    mes=r.mes.strip() if r.mes else "Ene",
                     anio=r.anio,
                     consumoKwh=float(r.consumo_kwh or 0.0),
                     lecturaAnterior=float(getattr(r, 'lectura_anterior', 0.0) or 0.0),
@@ -287,7 +285,7 @@ class Query:
                     notasObservaciones=r.notas_observaciones or "Dato Histórico"
                 ))
 
-            lista_recibos_unificada.sort(key=lambda x: (x.anio, meses_orden.get(x.mes, 0)), reverse=True)
+            lista_recibos_unificada.sort(key=lambda x: (x.anio, mes_orden_map.get(x.mes, 0)), reverse=True)
 
             return SectorType(
                 id=strawberry.ID(str(s.id)),
@@ -330,10 +328,8 @@ class Query:
                 selectinload(models.Sector.luminarias)
             ).execution_options(populate_existing=True).all()
              
-            meses_orden = {
-                "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4, "Mayo": 5, "Junio": 6,
-                "Julio": 7, "Agosto": 8, "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
-            }
+            meses_orden_3letras = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            mes_orden_map = {m: i for i, m in enumerate(meses_orden_3letras)}
 
             resultado = []
             for s in sectores:
@@ -341,7 +337,7 @@ class Query:
                 for r in s.recibos_detallados:
                     lista_recibos_unificada.append(Recibo(
                         id=strawberry.ID(f"det_{r.id}"),
-                        mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                        mes=r.mes.strip() if r.mes else "Ene",
                         anio=r.anio,
                         consumoKwh=float(r.consumo_kwh or 0.0),
                         lecturaAnterior=float(r.lectura_anterior or 0.0),
@@ -353,7 +349,7 @@ class Query:
                 for r in s.recibos_mensuales:
                     lista_recibos_unificada.append(Recibo(
                         id=strawberry.ID(f"men_{r.id}"),
-                        mes=r.mes.strip().capitalize() if r.mes else "S/M",
+                        mes=r.mes.strip() if r.mes else "Ene",
                         anio=r.anio,
                         consumoKwh=float(r.consumo_kwh or 0.0),
                         lecturaAnterior=float(getattr(r, 'lectura_anterior', 0.0) or 0.0),
@@ -364,15 +360,15 @@ class Query:
                     ))
 
                 if mes:
-                    mes_limpio = mes.strip().capitalize()
-                    lista_recibos_unificada = [r for r in lista_recibos_unificada if r.mes == mes_limpio]
+                    mes_limpio = mes.strip()
+                    lista_recibos_unificada = [r for r in lista_recibos_unificada if r.mes.lower() == mes_limpio.lower()]
                 if anio:
                     lista_recibos_unificada = [r for r in lista_recibos_unificada if r.anio == anio]
 
                 if (mes or anio) and not lista_recibos_unificada:
                     continue
 
-                lista_recibos_unificada.sort(key=lambda x: (x.anio, meses_orden.get(x.mes, 0)), reverse=True)
+                lista_recibos_unificada.sort(key=lambda x: (x.anio, mes_orden_map.get(x.mes, 0)), reverse=True)
 
                 resultado.append(SectorType(
                     id=strawberry.ID(str(s.id)),
@@ -409,15 +405,20 @@ class Query:
     def dashboardResumen(self, anio: int) -> List[DashboardResumenType]:
         db = SessionLocal()
         try:
-            recibos = db.query(models.ReciboMensual).filter(models.ReciboMensual.anio == anio).all()
+            # Filtramos únicamente los registros que NO son consolidados (es_consolidado = 0)
+            recibos = db.query(models.ReciboDetallado).filter(
+                models.ReciboDetallado.anio == anio,
+                models.ReciboDetallado.es_consolidado == 0
+            ).all()
             
             meses_map = {}
             for r in recibos:
-                m = r.mes.strip().capitalize() if r.mes else "Enero"
+                m = r.mes.strip()
                 if m not in meses_map:
                     meses_map[m] = {"alumPago": 0.0, "inmPago": 0.0, "alumKwh": 0.0, "inmKwh": 0.0}
                 
-                if r.tipo_servicio and "INMUEBLE" in r.tipo_servicio.upper():
+                tipo = (r.tipo_servicio or "").upper()
+                if "INMUEBLES" in tipo:
                     meses_map[m]["inmPago"] += float(r.importe_recibo or 0)
                     meses_map[m]["inmKwh"] += float(r.consumo_kwh or 0)
                 else:
@@ -683,7 +684,7 @@ class Mutation:
              
             return Recibo(
                 id=strawberry.ID(str(recibo.id)),
-                mes=recibo.mes,
+                mes=recibo.mes.strip(),
                 anio=recibo.anio,
                 consumoKwh=float(recibo.consumo_kwh or 0.0),
                 lecturaAnterior=float(recibo.lectura_anterior or 0.0),
@@ -705,7 +706,7 @@ class Mutation:
             recibo = db.query(models.ReciboDetallado).filter(
                 models.ReciboDetallado.sector_id == sectorId,
                 models.ReciboDetallado.mes == mes,
-                models.ReciboDetallado.anio == anio
+                models.ReciboDetallado.anio == input.anio
             ).first()
 
             if recibo:
@@ -755,9 +756,9 @@ class Mutation:
                     mensajes.append(f"Datos de Sector {item.id} actualizados.")
             db.commit()
             return mensajes
-        except Exception as e:
+        except Exception as data_err:
             db.rollback()
-            raise e
+            raise data_err
         finally:
             db.close()
 

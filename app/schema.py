@@ -664,14 +664,22 @@ class Mutation:
                 models.ReciboDetallado.anio == input.anio
             ).first()
 
+            # Consultamos el sector para obtener su clasificación real de forma automática
+            sector = db.query(models.Sector).filter(models.Sector.id == input.sectorId).first()
+            tipo_automatico = sector.clasificacion if sector and sector.clasificacion else "ALUMBRADO"
+
             if not recibo:
                 recibo = models.ReciboDetallado(
                     sector_id=input.sectorId,
                     mes=input.mes,
                     anio=input.anio,
-                    tipo_servicio="ALUMBRADO"
+                    tipo_servicio=tipo_automatico  # <--- Toma la clasificación del sector en automático
                 )
                 db.add(recibo)
+            else:
+                # Si ya existe pero estaba como Alumbrado por defecto, lo actualizamos con su clasificación real
+                if not recibo.tipo_servicio or recibo.tipo_servicio == "ALUMBRADO":
+                    recibo.tipo_servicio = tipo_automatico
 
             recibo.lectura_anterior = input.lecturaAnterior
             recibo.lectura_actual = input.lecturaActual

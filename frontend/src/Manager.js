@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Database, Save, Building2, Search, CheckCircle2, AlertCircle, 
-  Loader2, RefreshCw, Calendar, FileSpreadsheet, Lock, Unlock, 
+  Loader2, RefreshCw, Calendar, FileSpreadsheet, FileText, Lock, Unlock, 
   Zap, Layers, ChevronRight, TrendingUp, Trash2, UploadCloud, X, CheckCircle, Clock
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts';
-import { useApp } from './AppContext';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://proy-alumbrado.duckdns.org/graphql';
+const API_URL = process.env.REACT_APP_API_URL || 'http://134.209.65.153:8085/graphql';
 const ORDEN_MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-const Manager = () => {
-  const { todosLosSectores: sectores, cargarSectoresGlobal, loadingGlobal } = useApp();
+// Memoria global en RAM para evitar recargas innecesarias
+let memoriaGlobalSectores = null;
 
+const Manager = () => {
+  const [sectores, setSectores] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('todos'); // 'todos' | 'capturados' | 'pendientes'
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [editarFijos, setEditarFijos] = useState(false);
@@ -98,15 +100,97 @@ const Manager = () => {
     }
   }, [reciboForm.mes, reciboForm.anio]);
 
-  useEffect(() => {
-    cargarSectoresGlobal();
-  }, [cargarSectoresGlobal]);
+  const cargarSectores = useCallback((forzarRecarga = false) => {
+    const cacheKey = 'cache_manager_sectores';
+    const flagKey = 'cargando_manager_en_proceso';
+
+    if (!forzarRecarga && memoriaGlobalSectores) {
+      setSectores(memoriaGlobalSectores);
+      if (memoriaGlobalSectores.length > 0 && !sectorForm.id) {
+        seleccionarSector(memoriaGlobalSectores[0]);
+      }
+      return;
+    }
+
+    try {
+      const datosGuardados = sessionStorage.getItem(cacheKey);
+      if (!forzarRecarga && datosGuardados) {
+        const parsedData = JSON.parse(datosGuardados);
+        memoriaGlobalSectores = parsedData;
+        setSectores(parsedData);
+        if (parsedData.length > 0 && !sectorForm.id) {
+          seleccionarSector(parsedData[0]);
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn("Error leyendo sessionStorage:", e);
+    }
+
+    if (sessionStorage.getItem(flagKey) === 'true' && !forzarRecarga) return;
+    sessionStorage.setItem(flagKey, 'true');
+
+    setLoading(true);
+    const query = `{
+      todosLosSectores {
+        id
+        clave
+        clasificacion
+        consumoIdeal
+        consumoAceptable
+        consumoMaximo
+        nombreColonia
+        medidor
+        cuenta
+        carga
+        cpd
+        tarifa
+        recibos {
+          id
+          anio
+          mes
+          consumoKwh
+          importe
+          lecturaAnterior
+          lecturaActual
+          notasObservaciones
+        }
+      }
+    }`;
+
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    })
+      .then(res => res.json())
+      .then(data => {
+        sessionStorage.removeItem(flagKey);
+        if (data.data?.todosLosSectores) {
+          const nuevosSectores = data.data.todosLosSectores;
+          memoriaGlobalSectores = nuevosSectores;
+          setSectores(nuevosSectores);
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify(nuevosSectores));
+          } catch (e) {
+            console.warn("Cuota de sessionStorage excedida:", e);
+          }
+          if (nuevosSectores.length > 0 && !sectorForm.id) {
+            seleccionarSector(nuevosSectores[0]);
+          }
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        sessionStorage.removeItem(flagKey);
+        console.error("Error de conexión:", err);
+        setLoading(false);
+      });
+  }, [sectorForm.id, seleccionarSector]);
 
   useEffect(() => {
-    if (sectores.length > 0 && !sectorForm.id) {
-      seleccionarSector(sectores[0]);
-    }
-  }, [sectores, sectorForm.id, seleccionarSector]);
+    cargarSectores();
+  }, [cargarSectores]);
 
   const cambiarMes = (nuevoMes) => {
     const reciboExistente = (sectorForm.recibos || []).find(
@@ -193,7 +277,7 @@ const Manager = () => {
         lecturaAnterior: parseFloat(reciboForm.lecturaAnterior) || 0,
         lecturaActual: parseFloat(reciboForm.lecturaActual) || 0,
         consumoKwh: parseFloat(reciboForm.consumoKwh) || 0,
-        importeRecibo: parseFloat(reciboForm.importe) || 0,
+        importe: parseFloat(reciboForm.importe) || 0,
         notasObservaciones: reciboForm.notasObservaciones || ""
       }
     };
@@ -211,7 +295,13 @@ const Manager = () => {
           setMensaje({ tipo: 'error', texto: `Error: ${detalleError}` });
         } else {
           setMensaje({ tipo: 'exito', texto: `Captura de ${reciboForm.mes} ${reciboForm.anio} guardada exitosamente.` });
-          cargarSectoresGlobal(true); 
+          memoriaGlobalSectores = null; 
+          try {
+            sessionStorage.removeItem('cache_manager_sectores');
+          } catch (e) {
+            console.warn(e);
+          }
+          cargarSectores(true); 
           setTimeout(() => setMensaje(null), 3000);
         }
       })
@@ -262,7 +352,7 @@ const Manager = () => {
                 lecturaAnterior: lecAnt,
                 lecturaActual: lecAct,
                 consumoKwh: kwh,
-                importeRecibo: imp,
+                importe: imp,
                 notasObservaciones: notas
               }
             };
@@ -285,7 +375,13 @@ const Manager = () => {
       setDatosMasivosInput('');
       setMensaje({ tipo: 'exito', texto: `Carga masiva completada. Se procesaron ${exitosos} registros correctamente.` });
       
-      cargarSectoresGlobal(true);
+      memoriaGlobalSectores = null;
+      try {
+        sessionStorage.removeItem('cache_manager_sectores');
+      } catch (e) {
+        console.warn(e);
+      }
+      cargarSectores(true);
       setTimeout(() => setMensaje(null), 4000);
     } catch (error) {
       setCargandoMasivo(false);
@@ -334,7 +430,13 @@ const Manager = () => {
             importe: 0,
             notasObservaciones: ''
           }));
-          cargarSectoresGlobal(true);
+          memoriaGlobalSectores = null;
+          try {
+            sessionStorage.removeItem('cache_manager_sectores');
+          } catch (e) {
+            console.warn(e);
+          }
+          cargarSectores(true);
           setTimeout(() => setMensaje(null), 3000);
         }
       })
@@ -342,6 +444,94 @@ const Manager = () => {
         setSaving(false);
         setMensaje({ tipo: 'error', texto: 'Error de conexión con el servidor.' });
       });
+  };
+
+  const exportarPDFPeriodo = () => {
+    if (!sectores || sectores.length === 0) {
+      setMensaje({ tipo: 'error', texto: 'No hay sectores para exportar.' });
+      return;
+    }
+
+    const ventanaImpresion = window.open('', '_blank');
+    if (!ventanaImpresion) {
+      setMensaje({ tipo: 'error', texto: 'El navegador bloqueó la ventana emergente para imprimir.' });
+      return;
+    }
+
+    let filasHTML = '';
+    let totalConsumo = 0;
+    let totalImporte = 0;
+
+    sectores.forEach(sec => {
+      const recibo = (sec.recibos || []).find(
+        r => r.mes.toLowerCase() === reciboForm.mes.toLowerCase() && parseInt(r.anio) === parseInt(reciboForm.anio)
+      );
+      const consumo = recibo ? parseFloat(recibo.consumoKwh) || 0 : 0;
+      const importe = recibo ? parseFloat(recibo.importe) || 0 : 0;
+      totalConsumo += consumo;
+      totalImporte += importe;
+
+      filasHTML += `
+        <tr>
+          <td><b>${sec.clave || ''}</b></td>
+          <td>${sec.nombreColonia || 'N/D'}</td>
+          <td>${sec.clasificacion || 'ALUMBRADO PUBLICO'}</td>
+          <td>${sec.tarifa || '5A'}</td>
+          <td style="text-align: right;">${consumo.toLocaleString()} kWh</td>
+          <td style="text-align: right;">$${importe.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+          <td>${recibo ? 'Capturado' : 'Pendiente'}</td>
+        </tr>
+      `;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Reporte de Consumo - ${reciboForm.mes} ${reciboForm.anio}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111; margin: 20px; font-size: 12px; }
+            h1 { font-size: 18px; margin-bottom: 5px; color: #0f172a; text-transform: uppercase; }
+            .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+            th { background-color: #f1f5f9; color: #334155; font-weight: bold; }
+            .totales { margin-top: 15px; font-size: 14px; font-weight: bold; text-align: right; }
+          </style>
+        </head>
+        <body>
+          <h1>Reporte General de Consumo - Smart Playa</h1>
+          <div class="subtitle">Periodo: <b>${reciboForm.mes} ${reciboForm.anio}</b> | Total Sectores: ${sectores.length}</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Clave Sector</th>
+                <th>Colonia</th>
+                <th>Clasificación</th>
+                <th>Tarifa</th>
+                <th style="text-align: right;">Consumo (kWh)</th>
+                <th style="text-align: right;">Importe</th>
+                <th>Estatus</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filasHTML}
+            </tbody>
+          </table>
+          <div class="totales">
+            Consumo Total: ${totalConsumo.toLocaleString()} kWh &nbsp;|&nbsp; Importe Total: $${totalImporte.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          </div>
+          <script>
+            window.onload = function() { window.print(); };
+          </script>
+        </body>
+      </html>
+    `;
+
+    ventanaImpresion.document.write(htmlContent);
+    ventanaImpresion.document.close();
+    setMensaje({ tipo: 'exito', texto: `Generando PDF del periodo ${reciboForm.mes} ${reciboForm.anio}...` });
+    setTimeout(() => setMensaje(null), 3000);
   };
 
   const sectoresFiltrados = useMemo(() => {
@@ -353,9 +543,11 @@ const Manager = () => {
         r => r.mes.toLowerCase() === reciboForm.mes.toLowerCase() && parseInt(r.anio) === parseInt(reciboForm.anio) && (parseFloat(r.lecturaActual) > 0 || parseFloat(r.consumoKwh) > 0)
       );
 
-      if (filtroEstado === 'capturados') return coincideTexto && tieneCaptura;
-      if (filtroEstado === 'pendientes') return coincideTexto && !tieneCaptura;
-      return coincideTexto;
+      if (!coincideTexto) return false;
+
+      if (filtroEstado === 'capturados') return tieneCaptura;
+      if (filtroEstado === 'pendientes') return !tieneCaptura;
+      return true;
     });
   }, [sectores, busqueda, filtroEstado, reciboForm.mes, reciboForm.anio]);
 
@@ -447,6 +639,14 @@ const Manager = () => {
 
           <div className="flex items-center gap-2">
             <button 
+              onClick={exportarPDFPeriodo} 
+              className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-700/60 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all"
+              title="Exportar reporte en PDF del periodo actual"
+            >
+              <FileText size={13} />
+              <span>PDF</span>
+            </button>
+            <button 
               onClick={() => setModalMasivoAbierto(true)} 
               className="bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all"
             >
@@ -454,10 +654,18 @@ const Manager = () => {
               <span>Carga Masiva</span>
             </button>
             <button 
-              onClick={() => cargarSectoresGlobal(true)} 
+              onClick={() => {
+                memoriaGlobalSectores = null;
+                try {
+                  sessionStorage.removeItem('cache_manager_sectores');
+                } catch (e) {
+                  console.warn(e);
+                }
+                cargarSectores(true);
+              }} 
               className="bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
             >
-              <RefreshCw size={13} className={loadingGlobal ? "animate-spin text-rose-400" : ""} /> 
+              <RefreshCw size={13} className={loading ? "animate-spin text-rose-400" : ""} /> 
               <span>Sincronizar</span>
             </button>
             <button 

@@ -10,30 +10,53 @@ import { useApp } from './AppContext.js';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://proy-alumbrado.duckdns.org/graphql';
 
-const reproducirAlertaCensoCompletado = () => {
+// SONIDO CORTO Y ELEGANTE PARA CADA POSTE
+const reproducirSonidoPoste = () => {
   try {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const mensajeVoz = new SpeechSynthesisUtterance("Census successfully completed!");
-      mensajeVoz.lang = 'en-US';
-      mensajeVoz.rate = 1.0;
-      window.speechSynthesis.speak(mensajeVoz);
-    }
-    
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
+    
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3);
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+    osc.frequency.setValueAtTime(783.99, audioCtx.currentTime); // Nota Sol5
+    
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    
     osc.connect(gain);
     gain.connect(audioCtx.destination);
+    
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.8);
+    osc.stop(audioCtx.currentTime + 0.15);
   } catch (e) {
-    console.warn("No se pudo reproducir audio:", e);
+    console.warn("No se pudo reproducir audio de poste:", e);
+  }
+};
+
+// ACORDE LARGO Y ELEGANTE AL COMPLETAR EL SECTOR 100%
+const reproducirSonidoSectorCompleto = () => {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    [523.25, 659.25, 783.99].forEach((freq, index) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + (index * 0.08));
+      
+      gain.gain.setValueAtTime(0, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime + (index * 0.08));
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7 + (index * 0.08));
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.start(audioCtx.currentTime + (index * 0.08));
+      osc.stop(audioCtx.currentTime + 0.9);
+    });
+  } catch (e) {
+    console.warn("No se pudo reproducir audio de sector completo:", e);
   }
 };
 
@@ -54,7 +77,7 @@ const ActualizarMapa = ({ sector, luminaria, modoCrearSector, modoCrearLuminaria
     if (modoSeguimiento && posicionGPS) {
       map.setView([posicionGPS.lat, posicionGPS.lng], 19, { animate: true });
     } else if (luminaria && luminaria.latitud && luminaria.longitud) {
-      // Evitamos recentrar automáticamente
+      // INTENCIONALMENTE VACÍO: Al hacer clic en un poste no recentramos la vista para permitir avance manual libre
     } else if (ubicacionUsuario && (modoCrearSector || modoCrearLuminaria)) {
       map.setView([ubicacionUsuario.lat, ubicacionUsuario.lng], 19, { animate: true });
     } else if (sector && sector.latitud && sector.longitud && !modoCrearSector && !modoSeguimiento && !luminaria) {
@@ -112,10 +135,10 @@ const crearIconoSectorPersonalizado = (isActive, colorBase = '#2563eb') => {
   return L.divIcon({ 
     html: `
       <div style="
-        width: 28px; height: 28px; 
+        width: 26px; height: 26px; 
         position: relative; 
-        filter: drop-shadow(3px 3px 4px rgba(0,0,0,0.6));
-        transform: ${isActive ? 'scale(1.4) translateY(-5px)' : 'scale(1)'};
+        filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.5));
+        transform: ${isActive ? 'scale(1.3) translateY(-4px)' : 'scale(1)'};
         transition: all 0.3s ease;
       ">
         <div style="position: absolute; width: 100%; height: 100%; background: #111; clip-path: ${triClipPath};"></div>
@@ -131,7 +154,7 @@ const crearIconoSectorPersonalizado = (isActive, colorBase = '#2563eb') => {
         "></div>
       </div>
     `, 
-    iconSize: [36, 36], iconAnchor: [18, 36], className: ''
+    iconSize: [26, 26], iconAnchor: [13, 26], className: ''
   });
 };
 
@@ -157,7 +180,7 @@ const crearIconoSector = (isActive, sector, mesesOrden) => {
   let color = '#2563eb'; 
   if (esAlerta) color = '#dc2626'; 
   else if (sector.clasificacion?.toUpperCase().includes("INMUEBLE")) color = '#ff8c00ff'; 
-  else if (sector.clasificacion?.toUpperCase().includes("ALUMBRADO - AJUSTE")) color = '#8b5cf6'; // Color distintivo para Ajustes
+  else if (sector.clasificacion?.toUpperCase().includes("ALUMBRADO - AJUSTE")) color = '#8b5cf6';
 
   return crearIconoSectorPersonalizado(isActive, color);
 };
@@ -171,27 +194,27 @@ const crearIconoPoste3D = (luminariasPorPoste = 1, estado = 'pendiente') => {
   if (estado === 'no_existe') colorLuz = '#dc2626'; 
 
   const cabezalesHtml = numLamps >= 2 
-    ? `<div style="display: flex; gap: 6px; align-items: flex-end;">
-        <div style="width: 14px; height: 8px; background: linear-gradient(to bottom, ${colorLuz}, #0369a1); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px ${colorLuz};"></div>
-        <div style="width: 14px; height: 8px; background: linear-gradient(to bottom, ${colorLuz}, #0369a1); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px ${colorLuz};"></div>
+    ? `<div style="display: flex; gap: 4px; align-items: flex-end;">
+        <div style="width: 12px; height: 7px; background: linear-gradient(to bottom, ${colorLuz}, #0369a1); border-radius: 3px 3px 0 0; box-shadow: 0 0 8px ${colorLuz};"></div>
+        <div style="width: 12px; height: 7px; background: linear-gradient(to bottom, ${colorLuz}, #0369a1); border-radius: 3px 3px 0 0; box-shadow: 0 0 8px ${colorLuz};"></div>
        </div>`
-    : `<div style="width: 18px; height: 9px; background: linear-gradient(to bottom, ${colorLuz}, #0369a1); border-radius: 6px 6px 0 0; box-shadow: 0 0 12px ${colorLuz};"></div>`;
+    : `<div style="width: 16px; height: 8px; background: linear-gradient(to bottom, ${colorLuz}, #0369a1); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px ${colorLuz};"></div>`;
 
   return L.divIcon({
     html: `
       <div style="
-        position: relative; width: 60px; height: 60px;
+        position: relative; width: 44px; height: 44px;
         display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-        transform: translateY(-10px); filter: drop-shadow(0 6px 6px rgba(0,0,0,0.7));
+        transform: translateY(-8px); filter: drop-shadow(0 4px 4px rgba(0,0,0,0.6));
       ">
-        <div style="position: absolute; bottom: 2px; width: 44px; height: 24px; background: radial-gradient(circle, ${colorLuz}88 0%, rgba(56,189,248,0) 70%); border-radius: 50%;"></div>
+        <div style="position: absolute; bottom: 2px; width: 34px; height: 18px; background: radial-gradient(circle, ${colorLuz}88 0%, rgba(56,189,248,0) 70%); border-radius: 50%;"></div>
         ${cabezalesHtml}
-        <div style="width: 3px; height: 32px; background: linear-gradient(90deg, #94a3b8, #cbd5e1, #475569); border-radius: 1px;"></div>
-        <div style="width: 10px; height: 5px; background: #334155; border-radius: 2px; border: 1px solid #64748b;"></div>
+        <div style="width: 2.5px; height: 24px; background: linear-gradient(90deg, #94a3b8, #cbd5e1, #475569); border-radius: 1px;"></div>
+        <div style="width: 8px; height: 4px; background: #334155; border-radius: 2px; border: 1px solid #64748b;"></div>
       </div>
     `,
-    iconSize: [60, 60],
-    iconAnchor: [30, 50]
+    iconSize: [44, 44],
+    iconAnchor: [22, 38]
   });
 };
 
@@ -209,7 +232,7 @@ const CapturarClicMapa = ({ activoLuminaria, activoSector, onAgregarCoordenada }
 };
 
 const Censo = () => {
-  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal, setTodosLosSectores } = useApp();
+  const { todosLosSectores, cargarSectoresGlobal, loadingGlobal, setTodosLosSectores, obtenerSectorCompleto } = useApp();
   const [sectorSeleccionado, setSectorSeleccionado] = useState(null);
   const [busqueda, setBusqueda] = useState('');
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
@@ -227,7 +250,6 @@ const Censo = () => {
   const watchIdRef = useRef(null);
 
   const [editandoSector, setEditandoSector] = useState(false);
-  const [editandoPoste, setEditandoPoste] = useState(false);
 
   const [luminariaSeleccionada, setLuminariaSeleccionada] = useState(null);
   const [modoCrearLuminaria, setModoCrearLuminaria] = useState(false);
@@ -235,7 +257,7 @@ const Censo = () => {
   const [nuevaLuminariaForm, setNuevaLuminariaForm] = useState({
     cantidad_postes: 1, latitud: '', longitud: '', tipo_lampara: 'LED', descripcion: '', luminarias_por_poste: 1, capacidad: '70'
   });
-   
+    
   const [modoCrearSector, setModoCrearSector] = useState(false);
   const [nuevoSectorForm, setNuevoSectorForm] = useState({
     clave: '', clasificacion: 'Alumbrado Publico', nombreColonia: '', latitud: '', longitud: '', consumo_ideal: 0, consumo_aceptable: 0, consumo_maximo: 0, medidor: '', cuenta: '', carga: 0, cpd: 0, tarifa: '07'
@@ -326,22 +348,46 @@ const Censo = () => {
         }
       }
     }
-  }, [todosLosSectores, sectorSeleccionado, luminariaSeleccionada]);
+  }, [todosLosSectores]);
 
-  const seleccionarSectorLocal = useCallback((idSector) => {
+  const seleccionarSectorLocal = useCallback(async (idSector) => {
     const encontrado = todosLosSectores.find(s => String(s.id) === String(idSector));
-    if (encontrado) {
-      setSectorSeleccionado(encontrado);
-      setLuminariaSeleccionada(null);
-      setModalListaSectores(false);
-      setPanelMinimizado(false);
-      setMensaje({ tipo: 'exito', texto: `⚡ Sector ${encontrado.clave} seleccionado.` });
-      setTimeout(() => setMensaje(null), 2500);
-    } else {
+    if (!encontrado) {
       setMensaje({ tipo: 'error', texto: `⚠️ Sector no encontrado.` });
       setTimeout(() => setMensaje(null), 3000);
+      return;
     }
-  }, [todosLosSectores]);
+
+    let sectorAUsar = encontrado;
+
+    if (!encontrado.luminarias || encontrado.luminarias.length === 0) {
+      setSaving(true);
+      setMensaje({ tipo: 'exito', texto: `⏳ Cargando postes del sector ${encontrado.clave}...` });
+      
+      try {
+        const completo = await obtenerSectorCompleto(idSector);
+        if (completo) {
+          sectorAUsar = completo;
+          setTodosLosSectores(prev => prev.map(s => String(s.id) === String(idSector) ? completo : s));
+        }
+      } catch (e) {
+        console.error("Error al obtener sector completo:", e);
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    setSectorSeleccionado(sectorAUsar);
+    setLuminariaSeleccionada(null);
+    setModoCrearLuminaria(false);
+    setPostesTemporales([]);
+    setEditandoSector(false);
+    setModalListaSectores(false);
+    setPanelMinimizado(false);
+
+    setMensaje({ tipo: 'exito', texto: `⚡ Sector ${sectorAUsar.clave} listo para censar.` });
+    setTimeout(() => setMensaje(null), 2500);
+  }, [todosLosSectores, obtenerSectorCompleto, setTodosLosSectores]);
 
   useEffect(() => {
     if (modoSeguimiento) {
@@ -372,9 +418,10 @@ const Censo = () => {
 
             if (posteMasCercano && sectorMasCercano && menorDistanciaPoste <= 40) {
               if (!sectorSeleccionado || String(sectorSeleccionado.id) !== String(sectorMasCercano.id)) {
-                setSectorSeleccionado(sectorMasCercano);
+                seleccionarSectorLocal(sectorMasCercano.id);
+              } else {
+                setLuminariaSeleccionada(posteMasCercano);
               }
-              setLuminariaSeleccionada(posteMasCercano);
               if (window.innerWidth < 768) {
                 setPanelMinimizado(false);
               }
@@ -388,7 +435,7 @@ const Censo = () => {
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
     return () => { if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current); };
-  }, [modoSeguimiento, sectorSeleccionado, todosLosSectores]);
+  }, [modoSeguimiento, sectorSeleccionado, todosLosSectores, seleccionarSectorLocal]);
 
   const sugerenciasFiltradas = useMemo(() => {
     if (!busqueda.trim()) return [];
@@ -475,8 +522,11 @@ const Censo = () => {
     setTodosLosSectores(listaActualizada);
 
     const nuevosTotales = obtenerTotalesSector(sectorActualizado);
+    
     if (!yaEstabaCompletoAntes && nuevosTotales.porcentaje === 100) {
-      reproducirAlertaCensoCompletado();
+      reproducirSonidoSectorCompleto();
+    } else {
+      reproducirSonidoPoste();
     }
 
     const mutation = `
@@ -495,12 +545,12 @@ const Censo = () => {
     }
      
     setTimeout(() => {
-      setLuminariaSeleccionada(null);
       setMensaje(null);
-      if (window.innerWidth < 768) {
-        setPanelMinimizado(true);
-      }
     }, 400);
+
+    if (window.innerWidth < 768) {
+      setPanelMinimizado(true);
+    }
   };
 
   const handleMapaClick = (latlng) => {
@@ -564,9 +614,13 @@ const Censo = () => {
     setModoCrearLuminaria(false);
     setPostesTemporales([]);
      
-    cargarSectoresGlobal(true);
+    const sectorActualizado = await obtenerSectorCompleto(sectorSeleccionado.id);
+    if (sectorActualizado) {
+      setSectorSeleccionado(sectorActualizado);
+      setTodosLosSectores(prev => prev.map(s => String(s.id) === String(sectorActualizado.id) ? sectorActualizado : s));
+    }
      
-    setMensaje({ tipo: 'exito', texto: '✨ ¡Postes guardados con éxito! Haz clic en el sector para verlos pintados en el mapa.' });
+    setMensaje({ tipo: 'exito', texto: '✨ ¡Postes guardados y cargados con éxito!' });
     setTimeout(() => setMensaje(null), 4500);
   };
 
@@ -678,7 +732,6 @@ const Censo = () => {
     if (!navigator.onLine) {
       guardarCambioOffline('ACTUALIZAR_LUMINARIA', mutation);
       setSaving(false);
-      setEditandoPoste(false);
       setMensaje({ tipo: 'exito', texto: '⚡ Poste guardado (Offline).' });
       setTimeout(() => setMensaje(null), 3000);
       return;
@@ -686,19 +739,23 @@ const Censo = () => {
 
     fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: mutation }) })
       .then(res => res.json())
-      .then(resData => {
+      .then(async resData => {
         setSaving(false);
         if (!resData.errors) {
-          setMensaje({ tipo: 'exito', texto: '⚡ Poste actualizado.' });
-          setEditandoPoste(false);
-          cargarSectoresGlobal(true);
+          setMensaje({ tipo: 'exito', texto: '⚡ Poste actualizado correctamente.' });
+          if (sectorSeleccionado) {
+            const actualizado = await obtenerSectorCompleto(sectorSeleccionado.id);
+            if (actualizado) {
+              setSectorSeleccionado(actualizado);
+              setTodosLosSectores(prev => prev.map(s => String(s.id) === String(actualizado.id) ? actualizado : s));
+            }
+          }
         }
         setTimeout(() => setMensaje(null), 3000);
       })
       .catch(() => {
         guardarCambioOffline('ACTUALIZAR_LUMINARIA', mutation);
         setSaving(false);
-        setEditandoPoste(false);
         setMensaje({ tipo: 'exito', texto: '⚡ Sin red. Guardado en cola.' });
         setTimeout(() => setMensaje(null), 3000);
       });
@@ -729,15 +786,19 @@ const Censo = () => {
 
     fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: mutation }) })
       .then(res => res.json())
-      .then(resData => {
+      .then(async resData => {
         setSaving(false);
         if (resData.errors) {
           console.error("Error backend eliminando luminaria:", resData.errors);
           setMensaje({ tipo: 'error', texto: '⚠️ Error al eliminar en servidor.' });
         } else {
           setMensaje({ tipo: 'exito', texto: '🗑️ Poste eliminado correctamente.' });
+          const actualizado = await obtenerSectorCompleto(sectorSeleccionado.id);
+          if (actualizado) {
+            setSectorSeleccionado(actualizado);
+            setTodosLosSectores(prev => prev.map(s => String(s.id) === String(actualizado.id) ? actualizado : s));
+          }
         }
-        cargarSectoresGlobal(true);
         setTimeout(() => setMensaje(null), 3000);
       })
       .catch(() => {
@@ -781,14 +842,14 @@ const Censo = () => {
 
     fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: mutation }) })
       .then(res => res.json())
-      .then(resData => {
+      .then(async resData => {
         setSaving(false);
         if (!resData.errors && resData.data?.crearSector) {
           const nuevoSecServidor = { ...resData.data.crearSector, luminarias: [] };
           const listaActualizada = [...todosLosSectores, nuevoSecServidor];
            
           setTodosLosSectores(listaActualizada);
-          setSectorSeleccionado(nuevoSecServidor);
+          await seleccionarSectorLocal(nuevoSecServidor.id);
           setModoCrearSector(false);
           setMensaje({ tipo: 'exito', texto: `🏢 Sector registrado correctamente.` });
         } else {
@@ -817,8 +878,7 @@ const Censo = () => {
             <input type="text" placeholder="Medidor (RPU)" value={nuevoSectorForm.medidor} onChange={e => setNuevoSectorForm({...nuevoSectorForm, medidor: e.target.value})} className="bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
           </div>
           <input type="text" placeholder="Nombre de Colonia" value={nuevoSectorForm.nombreColonia} onChange={e => setNuevoSectorForm({...nuevoSectorForm, nombreColonia: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-2 rounded-xl text-white font-semibold text-xs" />
-          
-          {/* Clasificación y Parámetros CFE del Sector */}
+           
           <div className="space-y-1.5 pt-1 border-t border-slate-800">
             <label className="text-[9px] text-cyan-400 uppercase font-bold tracking-wider block">Clasificación y Parámetros CFE</label>
             <div className="grid grid-cols-2 gap-2">
@@ -890,11 +950,21 @@ const Censo = () => {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[9px] text-slate-400 uppercase font-bold">Tipo Lámpara:</label>
-              <input type="text" value={nuevaLuminariaForm.tipo_lampara} onChange={e => setNuevaLuminariaForm({...nuevaLuminariaForm, tipo_lampara: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              <input 
+                type="text" 
+                value={nuevaLuminariaForm.tipo_lampara ?? ''} 
+                onChange={e => setNuevaLuminariaForm({...nuevaLuminariaForm, tipo_lampara: e.target.value})} 
+                className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" 
+              />
             </div>
             <div>
               <label className="text-[9px] text-slate-400 uppercase font-bold">Capacidad (Watts):</label>
-              <input type="text" value={nuevaLuminariaForm.capacidad} onChange={e => setNuevaLuminariaForm({...nuevaLuminariaForm, capacidad: e.target.value})} className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
+              <input 
+                type="text" 
+                value={nuevaLuminariaForm.capacidad ?? ''} 
+                onChange={e => setNuevaLuminariaForm({...nuevaLuminariaForm, capacidad: e.target.value})} 
+                className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" 
+              />
             </div>
           </div>
 
@@ -905,7 +975,7 @@ const Censo = () => {
                 type="number" 
                 min="1" 
                 max="6" 
-                value={nuevaLuminariaForm.luminarias_por_poste} 
+                value={nuevaLuminariaForm.luminarias_por_poste ?? 1} 
                 onChange={e => setNuevaLuminariaForm({...nuevaLuminariaForm, luminarias_por_poste: parseInt(e.target.value) || 1})} 
                 className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" 
               />
@@ -915,7 +985,7 @@ const Censo = () => {
               <input 
                 type="number" 
                 min="1" 
-                value={nuevaLuminariaForm.cantidad_postes} 
+                value={nuevaLuminariaForm.cantidad_postes ?? 1} 
                 onChange={e => setNuevaLuminariaForm({...nuevaLuminariaForm, cantidad_postes: parseInt(e.target.value) || 1})} 
                 className="w-full bg-slate-950 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" 
               />
@@ -945,59 +1015,64 @@ const Censo = () => {
 
     if (luminariaSeleccionada) {
       return (
-        <div className="space-y-3 text-xs">
-          <div className="grid grid-cols-2 gap-2 bg-slate-950 p-2.5 rounded-2xl border border-slate-800">
-            <div>
-              <p className="text-[9px] text-slate-400 font-bold uppercase">Poste ID / Censo:</p>
-              <p className="font-black text-cyan-300 text-sm">Poste #{luminariaSeleccionada.id}</p>
+        <div className="space-y-2.5 text-xs">
+          <div className="bg-slate-950 p-3 rounded-2xl border border-cyan-500/40 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-cyan-300 uppercase">Modificar Datos Poste #{luminariaSeleccionada.id}</span>
+              <button 
+                type="button" 
+                onClick={guardarCambiosLuminaria} 
+                disabled={saving}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded-xl text-[10px] font-black uppercase shadow-md cursor-pointer transition-all"
+              >
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
             </div>
-            <div>
-              <p className="text-[9px] text-slate-400 font-bold uppercase">Lámparas:</p>
-              <p className="font-black text-emerald-400 text-sm">{luminariaSeleccionada.luminariasPorPoste || 1} Unidades</p>
-            </div>
-          </div>
 
-          <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex justify-between items-center">
-            <div>
-              <p className="text-[9px] text-slate-400 font-bold uppercase">Especificación:</p>
-              <p className="font-bold text-slate-200 text-xs">{luminariaSeleccionada.tipoLampara || 'LED'} - {luminariaSeleccionada.capacidad || '70'} Watts</p>
-            </div>
-            <button type="button" onClick={() => setEditandoPoste(!editandoPoste)} className="text-[9px] bg-slate-800 hover:bg-slate-700 text-cyan-400 px-2.5 py-1 rounded-xl font-black uppercase cursor-pointer transition-all">
-              {editandoPoste ? 'Cerrar' : 'Editar'}
-            </button>
-          </div>
-
-          {editandoPoste && (
-            <div className="space-y-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
-              <div className="grid grid-cols-3 gap-1.5">
-                <div>
-                  <label className="text-[8px] text-slate-400 uppercase font-bold">Tipo:</label>
-                  <input type="text" value={luminariaSeleccionada.tipoLampara || ''} onChange={e => setLuminariaSeleccionada({...luminariaSeleccionada, tipoLampara: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
-                </div>
-                <div>
-                  <label className="text-[8px] text-slate-400 uppercase font-bold">Capacidad:</label>
-                  <input type="text" value={luminariaSeleccionada.capacidad || ''} onChange={e => setLuminariaSeleccionada({...luminariaSeleccionada, capacidad: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
-                </div>
-                <div>
-                  <label className="text-[8px] text-slate-400 uppercase font-bold">Cant. Lamps:</label>
-                  <input type="number" value={luminariaSeleccionada.luminariasPorPoste || 1} onChange={e => setLuminariaSeleccionada({...luminariaSeleccionada, luminariasPorPoste: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold" />
-                </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Tipo Lámpara:</label>
+                <input 
+                  type="text" 
+                  value={luminariaSeleccionada.tipoLampara ?? ''} 
+                  onChange={e => setLuminariaSeleccionada({...luminariaSeleccionada, tipoLampara: e.target.value})} 
+                  className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold focus:border-cyan-500 outline-none" 
+                />
               </div>
-              <button type="button" onClick={guardarCambiosLuminaria} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-1.5 rounded-xl font-black uppercase cursor-pointer text-xs shadow-lg">Guardar Modificaciones</button>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Watts (Capacidad):</label>
+                <input 
+                  type="text" 
+                  value={luminariaSeleccionada.capacidad ?? ''} 
+                  onChange={e => setLuminariaSeleccionada({...luminariaSeleccionada, capacidad: e.target.value})} 
+                  className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold focus:border-cyan-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="text-[8px] text-slate-400 uppercase font-bold">Cant. Lámparas:</label>
+                <input 
+                  type="number" 
+                  min="1"
+                  max="6"
+                  value={luminariaSeleccionada.luminariasPorPoste ?? 1} 
+                  onChange={e => setLuminariaSeleccionada({...luminariaSeleccionada, luminariasPorPoste: parseInt(e.target.value) || 1})} 
+                  className="w-full bg-slate-900 border border-slate-700 p-1.5 rounded-xl text-white text-xs font-semibold focus:border-cyan-500 outline-none" 
+                />
+              </div>
             </div>
-          )}
+          </div>
 
           <div className="pt-1">
             <button 
               type="button"
               onClick={() => actualizarAuditoriaPoste(luminariaSeleccionada.id, 'ok', luminariaSeleccionada.observacion)}
-              className={`w-full py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
+              className={`w-full py-3 px-4 rounded-2xl font-black text-xs uppercase tracking-wider shadow-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${
                 luminariaSeleccionada.estadoAuditoria === 'ok' 
                   ? 'bg-emerald-500 text-slate-950 ring-4 ring-emerald-300/50 shadow-emerald-500/80 scale-[1.02]' 
                   : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/60'
               }`}
             >
-              <Check size={20} className="stroke-[3]" /> OK
+              <Check size={18} className="stroke-[3]" /> OK (Siguiente / Minimizar)
             </button>
           </div>
 
@@ -1097,7 +1172,7 @@ const Censo = () => {
                 <input type="text" value={sectorSeleccionado.medidor || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, medidor: e.target.value})} className="bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-semibold" placeholder="Medidor (RPU)" />
               </div>
               <input type="text" value={sectorSeleccionado.nombreColonia || ''} onChange={e => setSectorSeleccionado({...sectorSeleccionado, nombreColonia: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-2 rounded-xl text-white text-xs font-semibold" placeholder="Colonia" />
-              
+               
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[8px] text-slate-400 uppercase font-bold">Clasificación:</label>
@@ -1136,15 +1211,24 @@ const Censo = () => {
             </div>
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Lista de Postes:</p>
-                <button 
-                  type="button" 
-                  onClick={eliminarSectorSeleccionado} 
-                  className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase flex items-center gap-1 cursor-pointer bg-rose-950/40 border border-rose-900/60 px-2 py-1 rounded-lg transition-all"
-                >
-                  <Trash2 size={11} /> Eliminar Sector
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    type="button"
+                    onClick={() => { setLuminariaSeleccionada(null); setPostesTemporales([]); setModoCrearLuminaria(true); }}
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase shadow-md flex items-center gap-1 cursor-pointer transition-all"
+                  >
+                    <Plus size={11} /> Streetlights
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={eliminarSectorSeleccionado} 
+                    className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase flex items-center gap-1 cursor-pointer bg-rose-950/40 border border-rose-900/60 px-2 py-1 rounded-lg transition-all"
+                  >
+                    <Trash2 size={11} /> Eliminar Sector
+                  </button>
+                </div>
               </div>
               {sectorSeleccionado.luminarias && sectorSeleccionado.luminarias.length > 0 ? (
                 sectorSeleccionado.luminarias.map((lum, idx) => {
@@ -1155,8 +1239,7 @@ const Censo = () => {
                       key={lum.id} 
                       onClick={() => { 
                         setLuminariaSeleccionada(lum); 
-                        setEditandoPoste(false); 
-                        if (window.innerWidth < 768) setPanelMinimizado(false); 
+                        if (window.innerWidth < 768) setPanelMinimizado(false);
                       }}
                       className={`p-2.5 rounded-2xl border flex justify-between items-center cursor-pointer transition-all hover:border-cyan-500 shadow-sm ${
                         est === 'ok' ? 'bg-emerald-950/40 border-emerald-500/50' : 
@@ -1263,7 +1346,7 @@ const Censo = () => {
             if (esSeleccionada) {
               return (
                 <React.Fragment key={`lum-active-${lum.id}`}>
-                  <CircleMarker center={[lat, lng]} radius={16} pathOptions={{ color: '#06b6d4', fillColor: '#06b6d4', fillOpacity: 0.35, weight: 3 }} />
+                  <CircleMarker center={[lat, lng]} radius={14} pathOptions={{ color: '#06b6d4', fillColor: '#06b6d4', fillOpacity: 0.35, weight: 2.5 }} />
                   <Marker position={[lat, lng]} icon={crearIconoPoste3D(porPoste, lum.estadoAuditoria)} eventHandlers={{ click: () => { setLuminariaSeleccionada(lum); if (window.innerWidth < 768) setPanelMinimizado(false); } }} />
                 </React.Fragment>
               );
@@ -1279,7 +1362,7 @@ const Censo = () => {
               <CircleMarker 
                 key={`lum-circle-${lum.id}`} 
                 center={[lat, lng]} 
-                radius={9} 
+                radius={7.5} 
                 pathOptions={{ 
                   color: '#0f172a', 
                   fillColor: colorPin, 
@@ -1304,9 +1387,9 @@ const Censo = () => {
               key={`temp-pin-${p.idTemp}`} 
               position={[p.latitud, p.longitud]} 
               icon={L.divIcon({
-                html: `<div style="width: 26px; height: 26px; background: #f59e0b; border: 3px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px #f59e0b;"><span style="color: black; font-weight: bold; font-size: 11px;">${idx + 1}</span></div>`,
-                iconSize: [26, 26],
-                iconAnchor: [13, 13]
+                html: `<div style="width: 24px; height: 24px; background: #f59e0b; border: 2.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 8px #f59e0b;"><span style="color: black; font-weight: bold; font-size: 10px;">${idx + 1}</span></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
               })} 
             />
           ))}
@@ -1319,7 +1402,7 @@ const Censo = () => {
 
       <div className={`absolute z-10 pointer-events-none flex p-3 md:p-4 gap-3 transition-all duration-300 ${panelMinimizado ? 'bottom-2 left-3 right-3 md:left-4 md:w-[440px]' : 'inset-x-2 top-2 bottom-2 md:inset-auto md:top-4 md:left-4 md:w-[440px] md:max-h-[calc(100vh-32px)]'}`}>
         <div className="pointer-events-auto w-full bg-slate-950/95 border border-slate-800/90 p-3.5 md:p-4 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col h-full max-h-full">
-             
+            
           <div className="flex justify-between items-center border-b border-slate-800 pb-2.5 shrink-0">
             <div className="flex items-center gap-2">
               <div className="bg-gradient-to-tr from-cyan-600 to-blue-600 p-2 rounded-xl text-white shadow-lg">
@@ -1358,7 +1441,7 @@ const Censo = () => {
 
           {!panelMinimizado && (
             <div className="space-y-3 overflow-y-auto pr-1 flex-1 mt-2">
-               
+                
               <div className="flex items-center justify-between gap-1.5">
                 <button 
                   type="button"
@@ -1464,7 +1547,7 @@ const Censo = () => {
                     </button>
                   )}
                   {luminariaSeleccionada && (
-                    <button type="button" onClick={() => { setLuminariaSeleccionada(null); setEditandoPoste(false); }} className="text-[9px] bg-slate-800 text-cyan-400 px-2.5 py-1 rounded-xl font-black uppercase cursor-pointer">← Volver</button>
+                    <button type="button" onClick={() => setLuminariaSeleccionada(null)} className="text-[9px] bg-slate-800 text-cyan-400 px-2.5 py-1 rounded-xl font-black uppercase cursor-pointer">← Volver</button>
                   )}
                 </div>
 
@@ -1475,19 +1558,8 @@ const Censo = () => {
             </div>
           )}
 
-          {!panelMinimizado && sectorSeleccionado && !modoCrearSector && !modoCrearLuminaria && (
-            <div className="pt-2 shrink-0">
-              <button 
-                type="button"
-                onClick={() => { setLuminariaSeleccionada(null); setPostesTemporales([]); setModoCrearLuminaria(true); }} 
-                className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-wider shadow-xl shadow-cyan-600/30 cursor-pointer flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Plus size={15} className="stroke-[3]" /> Streetlights 
-              </button>
-            </div>
-          )}
-
         </div>
+
       </div>
 
       {modalListaSectores && (

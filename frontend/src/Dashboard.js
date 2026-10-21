@@ -19,7 +19,7 @@ const COLORS = {
   border: 'rgba(255, 255, 255, 0.08)',
   text: '#64748b', 
   white: '#ffffff',
-  luzTooltip: '#38bdf8'       
+  luzTooltip: '#38bdf8'        
 };
 
 const formatMK = (v) => {
@@ -74,7 +74,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const Dashboard = () => {
-  const { dashboardData, cargarDashboardResumen, loadingDashboard, todosLosSectores, cargarSectoresGlobal } = useApp();
+  const { dashboardData, cargarDashboardResumen, loadingDashboard, todosLosSectores, cargarSectoresGlobal, obtenerSectorCompleto } = useApp();
 
   const [view, setView] = useState("general"); 
   const [anio, setAnio] = useState("2026");
@@ -83,6 +83,7 @@ const Dashboard = () => {
   const [busqueda, setBusqueda] = useState("");
   const [listaSugerencias, setListaSugerencias] = useState([]);
   const [exportando, setExportando] = useState(false);
+  const [cargandoSeleccion, setCargandoSeleccion] = useState(false);
 
   const dashboardRef = useRef(null);
 
@@ -109,9 +110,10 @@ const Dashboard = () => {
     }
   };
 
+  // --- PANORAMA GENERAL (INTACTO Y SIN MODIFICACIONES) ---
   const processedGeneral = useMemo(() => {
     const mesesOrden3 = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    
+   
     const normalizarMes = {
       "enero": "Ene", "ene": "Ene",
       "febrero": "Feb", "feb": "Feb",
@@ -183,19 +185,20 @@ const Dashboard = () => {
     return { ...sum, costoUnitario: sum.kwh > 0 ? sum.pago / sum.kwh : 0 };
   }, [processedGeneral]);
 
+  // --- LÓGICA DE BÚSQUEDA Y ANÁLISIS ESPECÍFICO ---
   useEffect(() => {
     if (busqueda.length < 2) { setListaSugerencias([]); return; }
     const term = busqueda.toLowerCase();
     const listado = [];
     const coloniasVistas = new Set();
-    const sectoresArray = Array.isArray(todosLosSectores) ? todosLosSectores : [];
+    const fuenteSectores = Array.isArray(todosLosSectores) ? todosLosSectores : [];
 
-    sectoresArray.forEach(s => {
+    fuenteSectores.forEach(s => {
       const col = s.nombreColonia?.toUpperCase() || "";
       const clave = s.clave?.toUpperCase() || "";
       if (col.toLowerCase().includes(term) && !coloniasVistas.has(col)) {
         coloniasVistas.add(col);
-        listado.push({ tipo: 'Colonia', nombre: col, data: sectoresArray.filter(sect => sect.nombreColonia === s.nombreColonia) });
+        listado.push({ tipo: 'Colonia', nombre: col, data: fuenteSectores.filter(sect => sect.nombreColonia === s.nombreColonia) });
       }
       if (clave.toLowerCase().includes(term)) {
         listado.push({ tipo: 'Sector', nombre: clave, data: [s] });
@@ -221,39 +224,95 @@ const Dashboard = () => {
       "diciembre": "Dic", "dic": "Dic"
     };
 
-    const sectoresArray = Array.isArray(todosLosSectores) ? todosLosSectores : [];
-    const dataAProcesar = seleccion ? seleccion.data : sectoresArray;
-    
+    const fuenteSectores = Array.isArray(todosLosSectores) ? todosLosSectores : [];
+    const dataAProcesar = seleccion ? seleccion.data : fuenteSectores;
+   
     let tp = 0, tl = 0;
     const acumulado = meses.reduce((acc, m) => { acc[m] = { valor: 0, importe: 0, tieneDatos: false }; return acc; }, {});
-    
+   
     dataAProcesar.forEach(s => {
-      tp += (s.luminarias || []).length;
-      tl += (s.luminarias || []).reduce((a, c) => a + (c.luminariasPorPoste || 0), 0);
-      (s.recibos || []).forEach(r => {
-        if (parseInt(r.anio) === parseInt(anio)) {
-          const rawMk = r.mes ? r.mes.trim().toLowerCase() : "";
-          const mk = normalizarMes[rawMk] || r.mes?.trim();
-          if (mk && acumulado[mk]) { 
-            acumulado[mk].valor += (r.consumoKwh || 0); 
-            acumulado[mk].importe += (r.importe || 0);
-            if ((r.consumoKwh || 0) > 0 || (r.importe || 0) > 0) acumulado[mk].tieneDatos = true;
+      // Suma precisa de postes y luminarias basándose en los registros reales de cada sector
+      const listaLuminarias = s.luminarias || s.listaLuminarias || s.detalleLuminarias || [];
+      if (Array.isArray(listaLuminarias) && listaLuminarias.length > 0) {
+        listaLuminarias.forEach(l => {
+          const postes = parseInt(l.cantidad_postes ?? l.cantidadPostes) || 1;
+          const porPoste = parseInt(l.luminarias_por_poste ?? l.luminariasPorPoste) || 1;
+          tp += postes;
+          tl += (postes * porPoste);
+        });
+      }
+   
+      // Suma de Recibos y Consumos por Mes
+      const listaRecibos = s.recibos_detallados || s.recibosMensuales || s.recibos_mensuales || s.recibos || [];
+      if (Array.isArray(listaRecibos) && listaRecibos.length > 0) {
+        listaRecibos.forEach(r => {
+          const anioRecibo = parseInt(r.anio || r.año);
+          if (anioRecibo === parseInt(anio)) {
+            const rawMk = r.mes ? r.mes.trim().toLowerCase() : "";
+            const mk = normalizarMes[rawMk] || r.mes?.trim();
+            if (mk && acumulado[mk]) { 
+              const kwh = parseFloat(r.consumo_kwh || r.consumoKwh) || 0;
+              const imp = parseFloat(r.importe_recibo || r.importeRecibo || r.importe) || 0;
+   
+              acumulado[mk].valor += kwh; 
+              acumulado[mk].importe += imp;
+   
+              if (kwh > 0 || imp > 0) {
+                acumulado[mk].tieneDatos = true;
+              }
+            }
           }
-        }
-      });
+        });
+      }
     });
 
-    let listaMeses = meses.map(m => ({ name: m, valor: acumulado[m].valor, importe: acumulado[m].importe, tieneDatos: acumulado[m].tieneDatos })).filter(item => item.tieneDatos);
+    let totalKwhGlobal = 0;
+    let totalImporteGlobal = 0;
+    let listaMeses = [];
+
+    if (!seleccion && Array.isArray(dashboardData) && dashboardData.length > 0) {
+      const mapaGlobalMeses = {};
+      dashboardData.forEach(item => {
+        if (!item.mes) return;
+        const rawKey = item.mes.trim().toLowerCase();
+        const mKey = normalizarMes[rawKey] || item.mes.trim();
+        if (!mapaGlobalMeses[mKey]) {
+          mapaGlobalMeses[mKey] = { name: mKey, valor: 0, importe: 0, tieneDatos: true };
+        }
+        const kwh = (item.alumKwh || 0) + (item.inmKwh || 0);
+        const imp = (item.alumPago || 0) + (item.inmPago || 0);
+        mapaGlobalMeses[mKey].valor += kwh;
+        mapaGlobalMeses[mKey].importe += imp;
+      });
+
+      listaMeses = meses.map(m => mapaGlobalMeses[m] || { name: m, valor: 0, importe: 0, tieneDatos: false }).filter(item => item.tieneDatos || item.valor > 0 || item.importe > 0);
+    } else {
+      listaMeses = meses.map(m => ({ 
+        name: m, 
+        valor: acumulado[m].valor, 
+        importe: acumulado[m].importe, 
+        tieneDatos: acumulado[m].tieneDatos 
+      })).filter(item => item.tieneDatos || item.valor > 0 || item.importe > 0);
+    }
+
     if (rangoTiempo === 'sem1') listaMeses = listaMeses.slice(0, 6);
     if (rangoTiempo === 'trim1') listaMeses = listaMeses.slice(0, 3);
 
+    totalKwhGlobal = listaMeses.reduce((sum, m) => sum + m.valor, 0);
+    totalImporteGlobal = listaMeses.reduce((sum, m) => sum + m.importe, 0);
+
     return {
-      grafica: listaMeses, postes: tp, luminarias: tl, numSectores: dataAProcesar.length,
-      totalKwh: listaMeses.reduce((s, m) => s + m.valor, 0),
-      totalImporte: listaMeses.reduce((s, m) => s + m.importe, 0),
-      limiteMax: (seleccion && seleccion.tipo === 'Sector') ? seleccion.data[0].consumoMaximo : null
+      grafica: listaMeses, 
+      postes: tp, 
+      luminarias: tl, 
+      numSectores: dataAProcesar.length,
+      totalKwh: totalKwhGlobal,
+      totalImporte: totalImporteGlobal,
+      limiteMax: (seleccion && seleccion.tipo === 'Sector' && seleccion.data[0]) 
+        ? (seleccion.data[0].consumo_ideal || seleccion.data[0].consumoMaximo || null) 
+        : null
     };
-  }, [seleccion, anio, todosLosSectores, rangoTiempo]);
+  }, [seleccion, anio, todosLosSectores, rangoTiempo, dashboardData]);
 
   return (
     <div ref={dashboardRef} style={{ 
@@ -261,7 +320,7 @@ const Dashboard = () => {
       overflow: 'hidden', color: 'white', padding: '6px 16px', display: 'flex', flexDirection: 'column', gap: '4px', 
       boxSizing: 'border-box', fontFamily: 'system-ui', position: 'fixed', top: '45px', left: 0, zIndex: 10
     }}>
-      
+   
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ display: 'flex', background: '#0b0f19', padding: '2px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
           <button onClick={() => setView('general')} style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'general' ? COLORS.costo : 'transparent', color: view === 'general' ? '#000' : 'white', fontSize: '11px', fontWeight: 'bold' }}>PANORAMA GENERAL</button>
@@ -310,7 +369,7 @@ const Dashboard = () => {
                 <div><div style={{ fontSize: '7px', color: COLORS.costo, fontWeight: 'bold' }}>IMPORTE</div><div style={{ fontSize: '12px', fontWeight: 'bold', color: COLORS.costo }}>{formatCurrencyMK(totalesGeneral.pago)}</div></div>
               </div>
             </div>
-            
+   
             <div style={{ flex: 1, minHeight: '120px', width: '100%', position: 'relative' }}>
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <ComposedChart data={processedGeneral} margin={{ top: 4, right: 4, left: 10, bottom: 0 }}>
@@ -388,24 +447,61 @@ const Dashboard = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '4px' }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <input type="text" placeholder="🔍 Buscar por RPU o nombre de colonia..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-              style={{ width: '100%', padding: '9px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: '#0b0f19', color: 'white', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
-            {listaSugerencias.length > 0 && (
-              <div style={{ position: 'absolute', top: '38px', width: '100%', background: '#070a12', borderRadius: '10px', zIndex: 100, border: `1px solid ${COLORS.border}`, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.8)' }}>
-                {listaSugerencias.map((sug, i) => (
-                  <div key={i} onClick={() => { setSeleccion(sug); setBusqueda(sug.nombre); setListaSugerencias([]); }} 
-                       style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: i === listaSugerencias.length -1 ? 'none' : `1px solid ${COLORS.border}`, fontSize: '11px' }}>
-                    <span style={{ fontWeight: 'bold', color: COLORS.alumbrado }}>{sug.nombre}</span> <span style={{fontSize: '9px', color: COLORS.text, marginLeft: '5px'}}>— {sug.tipo}</span>
-                  </div>
-                ))}
-              </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ position: 'relative', flexGrow: 1 }}>
+              <input type="text" placeholder={cargandoSeleccion ? "⏳ Cargando detalles del sector..." : "🔍 Buscar por Clave (Sector) o nombre de colonia..."} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} disabled={cargandoSeleccion}
+                style={{ width: '100%', padding: '9px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: '#0b0f19', color: 'white', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+              {listaSugerencias.length > 0 && (
+                <div style={{ position: 'absolute', top: '38px', width: '100%', background: '#070a12', borderRadius: '10px', zIndex: 100, border: `1px solid ${COLORS.border}`, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.8)' }}>
+                  {listaSugerencias.map((sug, i) => (
+                    <div key={i} onClick={async () => { 
+                         setBusqueda(sug.nombre); 
+                         setListaSugerencias([]); 
+                         setCargandoSeleccion(true);
+                        
+                         try {
+                           if (sug.tipo === 'Sector' && sug.data && sug.data[0]?.id) {
+                             const sectorCompleto = await obtenerSectorCompleto(sug.data[0].id);
+                             if (sectorCompleto) {
+                               setSeleccion({ tipo: 'Sector', nombre: sug.nombre, data: [sectorCompleto] });
+                             } else {
+                               setSeleccion(sug);
+                             }
+                           } else if (sug.tipo === 'Colonia' && Array.isArray(sug.data)) {
+                             const sectoresCompletos = await Promise.all(
+                               sug.data.map(async (s) => {
+                                 if (s.id) {
+                                   const completo = await obtenerSectorCompleto(s.id);
+                                   return completo || s;
+                                 }
+                                 return s;
+                               })
+                             );
+                             setSeleccion({ tipo: 'Colonia', nombre: sug.nombre, data: sectoresCompletos });
+                           } else {
+                             setSeleccion(sug);
+                           }
+                         } finally {
+                           setCargandoSeleccion(false);
+                         }
+                       }} 
+                         style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: i === listaSugerencias.length -1 ? 'none' : `1px solid ${COLORS.border}`, fontSize: '11px' }}>
+                      <span style={{ fontWeight: 'bold', color: COLORS.alumbrado }}>{sug.nombre}</span> <span style={{fontSize: '9px', color: COLORS.text, marginLeft: '5px'}}>— {sug.tipo}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {seleccion && (
+              <button onClick={() => { setSeleccion(null); setBusqueda(""); }} style={{ padding: '9px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: '#0b0f19', color: '#38bdf8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0 }}>
+                Ver Todos (Consolidado Global)
+              </button>
             )}
           </div>
-          
+   
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', flexShrink: 0 }}>
             {[
-              { label: 'SECTORES', val: infoEspecifica.numSectores, col: 'white' },
+              { label: seleccion ? 'SECTOR SELECCIONADO' : 'TOTAL SECTORES', val: infoEspecifica.numSectores, col: 'white' },
               { label: 'INFRAESTRUCTURA', val: formatNumber(infoEspecifica.postes) + " Postes", col: 'white' },
               { label: 'LUMINARIAS', val: formatNumber(infoEspecifica.luminarias), col: COLORS.alumbrado },
               { label: 'CONS. PERÍODO', val: formatMK(infoEspecifica.totalKwh) + " kWh", col: COLORS.inmuebles },

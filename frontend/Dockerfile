@@ -8,5 +8,9 @@ RUN npm run build
 
 FROM --platform=linux/amd64 nginx:alpine
 COPY --from=builder /app/build /usr/share/nginx/html
+
+# <--- AGREGA ESTA LÍNEA AQUÍ PARA CORREGIR LOS PERMISOS AUTOMÁTICAMENTE --->
+RUN chmod -R 755 /usr/share/nginx/html
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

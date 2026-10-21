@@ -554,7 +554,10 @@ class Mutation:
     def actualizarLuminaria(self, input: LuminariaUpdateInput) -> LuminariaType:
         db = SessionLocal()
         try:
-            lum_id = str(input.id).replace("lum-", "")
+            # Limpieza y conversión a entero para evitar fallos de tipo en la BD
+            limpio_id = str(input.id).replace("lum-", "").strip()
+            lum_id = int(limpio_id)
+            
             luminaria = db.query(models.Luminaria).filter(models.Luminaria.id == lum_id).first()
              
             if not luminaria:
@@ -592,7 +595,10 @@ class Mutation:
     def eliminarLuminaria(self, id: strawberry.ID) -> bool:
         db = SessionLocal()
         try:
-            lum_id = str(id).replace("lum-", "")
+            # Limpieza y conversión a entero requerida
+            limpio_id = str(id).replace("lum-", "").strip()
+            lum_id = int(limpio_id)
+            
             luminaria = db.query(models.Luminaria).filter(models.Luminaria.id == lum_id).first()
             if luminaria:
                 sector_id = luminaria.sector_id
@@ -653,7 +659,6 @@ class Mutation:
             raise e
         finally:
             db.close()
-
     @strawberry.mutation
     def registrarRecibo(self, input: ReciboInput) -> Recibo:
         db = SessionLocal()

@@ -315,11 +315,26 @@ const Dashboard = () => {
   }, [seleccion, anio, todosLosSectores, rangoTiempo, dashboardData]);
 
   return (
-    <div ref={dashboardRef} style={{ 
-      backgroundColor: COLORS.bg, width: '100vw', height: 'calc(100vh - 65px)', maxHeight: 'calc(100vh - 65px)', 
+    <div ref={dashboardRef} className="dashboard-principal" style={{ 
+      backgroundColor: COLORS.bg, width: '100vw', 
       overflow: 'hidden', color: 'white', padding: '6px 16px', display: 'flex', flexDirection: 'column', gap: '4px', 
-      boxSizing: 'border-box', fontFamily: 'system-ui', position: 'fixed', top: '65px', left: 0, zIndex: 10
+      boxSizing: 'border-box', fontFamily: 'system-ui', position: 'fixed', left: 0, zIndex: 10
     }}>
+      
+      <style>{`
+        .dashboard-principal {
+          top: 45px;
+          height: calc(100vh - 45px);
+          max-height: calc(100vh - 45px);
+        }
+        @media (max-width: 768px) {
+          .dashboard-principal {
+            top: 65px;
+            height: calc(100vh - 65px);
+            max-height: calc(100vh - 65px);
+          }
+        }
+      `}</style>
    
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ display: 'flex', background: '#0b0f19', padding: '2px', borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
@@ -450,7 +465,7 @@ const Dashboard = () => {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
             <div style={{ position: 'relative', flexGrow: 1 }}>
               <input type="text" placeholder={cargandoSeleccion ? "⏳ Cargando detalles del sector..." : "🔍 Buscar por Clave (Sector) o nombre de colonia..."} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} disabled={cargandoSeleccion}
-                style={{ width: '100%', padding: '9px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: '#0b0f19', color: 'white', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+         style={{ width: '100%', padding: '9px 14px', borderRadius: '10px', border: `1px solid ${COLORS.border}`, background: '#0b0f19', color: 'white', fontSize: '16px', outline: 'none', boxSizing: 'border-box', WebkitTextSizeAdjust: '100%' }} />
               {listaSugerencias.length > 0 && (
                 <div style={{ position: 'absolute', top: '38px', width: '100%', background: '#070a12', borderRadius: '10px', zIndex: 100, border: `1px solid ${COLORS.border}`, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.8)' }}>
                   {listaSugerencias.map((sug, i) => (

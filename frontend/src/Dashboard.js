@@ -316,9 +316,9 @@ const Dashboard = () => {
 
   return (
     <div ref={dashboardRef} style={{ 
-      backgroundColor: COLORS.bg, width: '100vw', height: 'calc(100vh - 45px)', maxHeight: 'calc(100vh - 45px)', 
+      backgroundColor: COLORS.bg, width: '100vw', height: 'calc(100vh - 65px)', maxHeight: 'calc(100vh - 65px)', 
       overflow: 'hidden', color: 'white', padding: '6px 16px', display: 'flex', flexDirection: 'column', gap: '4px', 
-      boxSizing: 'border-box', fontFamily: 'system-ui', position: 'fixed', top: '45px', left: 0, zIndex: 10
+      boxSizing: 'border-box', fontFamily: 'system-ui', position: 'fixed', top: '65px', left: 0, zIndex: 10
     }}>
    
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>

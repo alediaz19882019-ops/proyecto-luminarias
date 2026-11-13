@@ -21,7 +21,7 @@ services:
       - .:/code
     environment:
       - DATABASE_URL=mysql+mysqlconnector://root:${DB_ROOT_PASSWORD}@db/playa_db
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8085 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8085   # sin --reload: tras cambiar el código, correr `docker compose restart web`
     restart: always
     depends_on:
       - db

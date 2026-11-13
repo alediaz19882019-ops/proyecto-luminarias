@@ -16,7 +16,7 @@ services:
       context: .
     platform: linux/amd64
     ports:
-      - "8085:8085"
+      - "127.0.0.1:8085:8085"   # solo dentro del servidor: nginx lo publica con https
     volumes:
       - .:/code
     environment:
@@ -31,7 +31,7 @@ services:
       context: ./frontend
     platform: linux/amd64
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"   # solo dentro del servidor: nginx lo publica con https
     volumes:
       - ./frontend:/app
       - /app/node_modules

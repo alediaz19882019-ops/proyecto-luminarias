@@ -2,7 +2,7 @@ services:
   db:
     image: mysql:8.0
     platform: linux/amd64
-    command: --lower_case_table_names=1 --default-authentication-plugin=mysql_native_password
+    command: --lower_case_table_names=1 --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=32M --performance-schema=OFF --max-connections=30   # poca memoria: la base pesa ~5 MB
     environment:
       MYSQL_DATABASE: 'playa_db'
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}   # se toma del archivo .env (no se sube a GitHub)
